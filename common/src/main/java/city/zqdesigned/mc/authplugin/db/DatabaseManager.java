@@ -4,10 +4,14 @@ import city.zqdesigned.mc.authplugin.AuthPlugin;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,6 +44,7 @@ public final class DatabaseManager {
     private final ExecutorService executorService = Executors.newFixedThreadPool(2, new DbThreadFactory());
     private final Path databaseDirectory;
     private final String jdbcUrl;
+    private volatile Driver resolvedDriver;
 
     public DatabaseManager() {
         this(Path.of("config", "authplugin", "database"));
@@ -138,19 +143,78 @@ public final class DatabaseManager {
     }
 
     private Connection openConnection() throws SQLException {
+        Driver driver = this.resolvedDriver;
+        if (driver != null && driver.acceptsURL(this.jdbcUrl)) {
+            Connection connection = driver.connect(this.jdbcUrl, new Properties());
+            if (connection != null) {
+                return connection;
+            }
+        }
         return DriverManager.getConnection(this.jdbcUrl);
     }
 
     private void ensureH2DriverLoaded() throws SQLException {
-        for (String driverClassName : H2_DRIVER_CLASS_NAMES) {
-            try {
-                Class.forName(driverClassName);
-                return;
-            } catch (ClassNotFoundException ignored) {
-                // try next possible class name
+        if (this.resolvedDriver != null) {
+            return;
+        }
+
+        for (ClassLoader classLoader : collectCandidateClassLoaders()) {
+            for (String driverClassName : H2_DRIVER_CLASS_NAMES) {
+                Driver driver = tryInstantiateDriver(driverClassName, classLoader);
+                if (driver != null) {
+                    this.resolvedDriver = driver;
+                    return;
+                }
             }
         }
         throw new SQLException("H2 JDBC driver class not found on runtime classpath");
+    }
+
+    private static Set<ClassLoader> collectCandidateClassLoaders() {
+        LinkedHashSet<ClassLoader> loaders = new LinkedHashSet<>();
+        loaders.add(DatabaseManager.class.getClassLoader());
+        loaders.add(Thread.currentThread().getContextClassLoader());
+        loaders.add(ClassLoader.getSystemClassLoader());
+
+        String[] probeClasses = {
+            "city.zqdesigned.mc.authplugin.neoforge.AuthPluginNeoForge",
+            "city.zqdesigned.mc.authplugin.fabric.AuthPluginFabric",
+            "city.zqdesigned.mc.authplugin.AuthPlugin"
+        };
+        ClassLoader[] snapshot = loaders.stream().filter(Objects::nonNull).toArray(ClassLoader[]::new);
+        for (ClassLoader loader : snapshot) {
+            if (loader == null) {
+                continue;
+            }
+            for (String className : probeClasses) {
+                try {
+                    Class<?> clazz = Class.forName(className, false, loader);
+                    loaders.add(clazz.getClassLoader());
+                } catch (ClassNotFoundException ignored) {
+                    // keep probing
+                }
+            }
+            ClassLoader parent = loader.getParent();
+            while (parent != null) {
+                loaders.add(parent);
+                parent = parent.getParent();
+            }
+        }
+
+        loaders.remove(null);
+        return loaders;
+    }
+
+    private static Driver tryInstantiateDriver(String driverClassName, ClassLoader classLoader) {
+        try {
+            Class<?> driverClass = Class.forName(driverClassName, true, classLoader);
+            if (!Driver.class.isAssignableFrom(driverClass)) {
+                return null;
+            }
+            return (Driver) driverClass.getDeclaredConstructor().newInstance();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void ensureSchema(Connection connection) throws SQLException {

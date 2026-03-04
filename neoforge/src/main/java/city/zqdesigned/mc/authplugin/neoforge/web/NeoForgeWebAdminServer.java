@@ -1,4 +1,4 @@
-package city.zqdesigned.mc.authplugin.web;
+package city.zqdesigned.mc.authplugin.neoforge.web;
 
 import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
@@ -6,6 +6,9 @@ import city.zqdesigned.mc.authplugin.config.WebConfig;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.token.TokenInfo;
 import city.zqdesigned.mc.authplugin.token.TokenService;
+import city.zqdesigned.mc.authplugin.web.OnlinePlayerInfo;
+import city.zqdesigned.mc.authplugin.web.OnlinePlayerRegistry;
+import city.zqdesigned.mc.authplugin.web.WebAdminLifecycle;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
@@ -22,7 +25,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public final class WebAdminServer implements WebAdminLifecycle {
+public final class NeoForgeWebAdminServer implements WebAdminLifecycle {
     private static final Pattern TOKEN_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,128}$");
     private static final String INDEX_PAGE_RESOURCE = "/web/admin-panel-zh.html";
     private final TokenService tokenService;
@@ -33,7 +36,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
     private Javalin app;
     private volatile String indexPageCache;
 
-    public WebAdminServer(
+    public NeoForgeWebAdminServer(
         TokenService tokenService,
         AuthService authService,
         OnlinePlayerRegistry onlinePlayerRegistry,
@@ -47,6 +50,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.webConfig = webConfig;
     }
 
+    @Override
     public void start() {
         if (this.app != null) {
             return;
@@ -74,6 +78,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
         AuthPlugin.LOGGER.info("Web admin server started on port {}", this.webConfig.port());
     }
 
+    @Override
     public void stop() {
         if (this.app == null) {
             return;
@@ -202,11 +207,19 @@ public final class WebAdminServer implements WebAdminLifecycle {
     }
 
     private String loadIndexPageFromResource() {
-        try (InputStream inputStream = WebAdminServer.class.getResourceAsStream(INDEX_PAGE_RESOURCE)) {
-            if (inputStream == null) {
-                throw new IllegalStateException("Missing web resource: " + INDEX_PAGE_RESOURCE);
+        InputStream inputStream = AuthPlugin.class.getResourceAsStream(INDEX_PAGE_RESOURCE);
+        if (inputStream == null) {
+            ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+            if (contextClassLoader != null) {
+                inputStream = contextClassLoader.getResourceAsStream("web/admin-panel-zh.html");
             }
-            String html = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        if (inputStream == null) {
+            throw new IllegalStateException("Missing web resource: " + INDEX_PAGE_RESOURCE);
+        }
+
+        try (InputStream resource = inputStream) {
+            String html = new String(resource.readAllBytes(), StandardCharsets.UTF_8);
             return html.replace("__MAX_BATCH_COUNT__", Integer.toString(TokenService.MAX_BATCH_COUNT));
         } catch (IOException exception) {
             throw new UncheckedIOException("Failed to load web admin page", exception);

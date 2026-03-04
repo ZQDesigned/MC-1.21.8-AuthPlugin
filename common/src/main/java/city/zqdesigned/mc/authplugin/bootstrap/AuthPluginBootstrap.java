@@ -12,7 +12,8 @@ import city.zqdesigned.mc.authplugin.session.SessionManager;
 import city.zqdesigned.mc.authplugin.token.TokenDao;
 import city.zqdesigned.mc.authplugin.token.TokenService;
 import city.zqdesigned.mc.authplugin.web.OnlinePlayerRegistry;
-import city.zqdesigned.mc.authplugin.web.WebAdminServer;
+import city.zqdesigned.mc.authplugin.web.WebAdminLifecycle;
+import city.zqdesigned.mc.authplugin.web.WebAdminServerFactory;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -29,7 +30,7 @@ public final class AuthPluginBootstrap {
     private final AuthRestrictionService restrictionService = new AuthRestrictionService(this.authService);
     private final OnlinePlayerRegistry onlinePlayerRegistry = new OnlinePlayerRegistry();
     private volatile AuthPluginConfig config;
-    private volatile WebAdminServer webAdminServer;
+    private volatile WebAdminLifecycle webAdminServer;
 
     public void start() {
         if (!this.started.compareAndSet(false, true)) {
@@ -39,7 +40,7 @@ public final class AuthPluginBootstrap {
         try {
             this.config = this.configManager.loadOrCreate();
             this.databaseManager.initialize();
-            this.webAdminServer = new WebAdminServer(
+            this.webAdminServer = WebAdminServerFactory.create(
                 this.tokenService,
                 this.authService,
                 this.onlinePlayerRegistry,

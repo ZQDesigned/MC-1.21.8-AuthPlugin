@@ -35,8 +35,10 @@ dependencies {
     neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
 
     modImplementation "dev.architectury:architectury-neoforge:$rootProject.architectury_api_version"
+    compileOnly "io.javalin:javalin:$rootProject.javalin_version"
     runtimeOnly "com.h2database:h2:$rootProject.h2_version"
     runtimeOnly "io.javalin:javalin:$rootProject.javalin_version"
+    forgeRuntimeLibrary "io.javalin:javalin:$rootProject.javalin_version"
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
