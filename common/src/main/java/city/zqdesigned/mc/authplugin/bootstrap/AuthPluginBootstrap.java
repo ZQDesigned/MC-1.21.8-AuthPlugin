@@ -8,6 +8,8 @@ import city.zqdesigned.mc.authplugin.db.DatabaseManager;
 import city.zqdesigned.mc.authplugin.session.SessionManager;
 import city.zqdesigned.mc.authplugin.token.TokenDao;
 import city.zqdesigned.mc.authplugin.token.TokenService;
+import city.zqdesigned.mc.authplugin.web.OnlinePlayerRegistry;
+import city.zqdesigned.mc.authplugin.web.WebAdminServer;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -19,7 +21,9 @@ public final class AuthPluginBootstrap {
     private final TokenService tokenService = new TokenService(this.tokenDao);
     private final SessionManager sessionManager = new SessionManager();
     private final AuthService authService = new AuthService(this.tokenService, this.sessionManager);
+    private final OnlinePlayerRegistry onlinePlayerRegistry = new OnlinePlayerRegistry();
     private volatile AuthPluginConfig config;
+    private volatile WebAdminServer webAdminServer;
 
     public void start() {
         if (!this.started.compareAndSet(false, true)) {
@@ -29,6 +33,13 @@ public final class AuthPluginBootstrap {
         try {
             this.config = this.configManager.loadOrCreate();
             this.databaseManager.initialize();
+            this.webAdminServer = new WebAdminServer(
+                this.tokenService,
+                this.authService,
+                this.onlinePlayerRegistry,
+                this.config.web()
+            );
+            this.webAdminServer.start();
             AuthPlugin.LOGGER.info(
                 "AuthPlugin bootstrap initialized. Web admin configured on port {}.",
                 this.config.web().port()
@@ -49,6 +60,9 @@ public final class AuthPluginBootstrap {
 
     public void stop() {
         this.authService.resetSessions();
+        if (this.webAdminServer != null) {
+            this.webAdminServer.stop();
+        }
         this.databaseManager.shutdown();
     }
 
@@ -58,5 +72,9 @@ public final class AuthPluginBootstrap {
 
     public AuthService authService() {
         return this.authService;
+    }
+
+    public OnlinePlayerRegistry onlinePlayerRegistry() {
+        return this.onlinePlayerRegistry;
     }
 }
