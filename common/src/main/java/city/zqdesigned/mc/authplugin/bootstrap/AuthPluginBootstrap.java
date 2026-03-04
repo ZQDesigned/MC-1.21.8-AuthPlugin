@@ -1,9 +1,11 @@
 package city.zqdesigned.mc.authplugin.bootstrap;
 
 import city.zqdesigned.mc.authplugin.AuthPlugin;
+import city.zqdesigned.mc.authplugin.auth.AuthService;
 import city.zqdesigned.mc.authplugin.config.AuthPluginConfig;
 import city.zqdesigned.mc.authplugin.config.ConfigManager;
 import city.zqdesigned.mc.authplugin.db.DatabaseManager;
+import city.zqdesigned.mc.authplugin.session.SessionManager;
 import city.zqdesigned.mc.authplugin.token.TokenDao;
 import city.zqdesigned.mc.authplugin.token.TokenService;
 import java.util.Optional;
@@ -15,6 +17,8 @@ public final class AuthPluginBootstrap {
     private final DatabaseManager databaseManager = new DatabaseManager();
     private final TokenDao tokenDao = new TokenDao(this.databaseManager);
     private final TokenService tokenService = new TokenService(this.tokenDao);
+    private final SessionManager sessionManager = new SessionManager();
+    private final AuthService authService = new AuthService(this.tokenService, this.sessionManager);
     private volatile AuthPluginConfig config;
 
     public void start() {
@@ -44,10 +48,15 @@ public final class AuthPluginBootstrap {
     }
 
     public void stop() {
+        this.authService.resetSessions();
         this.databaseManager.shutdown();
     }
 
     public TokenService tokenService() {
         return this.tokenService;
+    }
+
+    public AuthService authService() {
+        return this.authService;
     }
 }
