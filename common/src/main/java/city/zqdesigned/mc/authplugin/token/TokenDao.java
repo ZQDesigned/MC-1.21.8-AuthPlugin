@@ -84,6 +84,31 @@ public final class TokenDao {
         });
     }
 
+    public CompletableFuture<List<String>> insertBatchIgnoringDuplicates(List<String> tokens, long now) {
+        return this.databaseManager.transactionAsync(connection -> {
+            List<String> insertedTokens = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tokens(token, bound_uuid, disabled, created_at, last_used_at) VALUES (?, NULL, FALSE, ?, ?)"
+            )) {
+                for (String token : tokens) {
+                    try {
+                        statement.setString(1, token);
+                        statement.setLong(2, now);
+                        statement.setLong(3, now);
+                        if (statement.executeUpdate() == 1) {
+                            insertedTokens.add(token);
+                        }
+                    } catch (SQLException exception) {
+                        if (!isDuplicateKey(exception)) {
+                            throw exception;
+                        }
+                    }
+                }
+            }
+            return insertedTokens;
+        });
+    }
+
     public CompletableFuture<Boolean> deleteToken(String token) {
         return this.databaseManager.supplyAsync(connection -> {
             try (PreparedStatement statement = connection.prepareStatement(
