@@ -29,6 +29,13 @@ public final class DatabaseManager {
             last_used_at BIGINT NOT NULL
         )
         """;
+    private static final String CREATE_PLAYER_PROFILES_TABLE_SQL = """
+        CREATE TABLE IF NOT EXISTS player_profiles (
+            uuid VARCHAR PRIMARY KEY,
+            player_name VARCHAR NOT NULL,
+            last_seen_at BIGINT NOT NULL
+        )
+        """;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ExecutorService executorService = Executors.newFixedThreadPool(2, new DbThreadFactory());
     private final Path databaseDirectory;
@@ -126,6 +133,7 @@ public final class DatabaseManager {
         try (Connection connection = this.openConnection();
              Statement statement = connection.createStatement()) {
             statement.execute(CREATE_TOKENS_TABLE_SQL);
+            statement.execute(CREATE_PLAYER_PROFILES_TABLE_SQL);
         }
     }
 
@@ -148,6 +156,7 @@ public final class DatabaseManager {
     private void ensureSchema(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             statement.execute(CREATE_TOKENS_TABLE_SQL);
+            statement.execute(CREATE_PLAYER_PROFILES_TABLE_SQL);
         }
     }
 

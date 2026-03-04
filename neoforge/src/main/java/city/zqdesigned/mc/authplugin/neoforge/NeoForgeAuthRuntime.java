@@ -3,6 +3,7 @@ package city.zqdesigned.mc.authplugin.neoforge;
 import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
 import city.zqdesigned.mc.authplugin.auth.LoginResult;
+import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
 import city.zqdesigned.mc.authplugin.restriction.PlayerActionType;
 import city.zqdesigned.mc.authplugin.web.OnlinePlayerRegistry;
@@ -27,6 +28,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 public final class NeoForgeAuthRuntime {
     private final AuthService authService = AuthPlugin.bootstrap().authService();
+    private final PlayerProfileService playerProfileService = AuthPlugin.bootstrap().playerProfileService();
     private final AuthRestrictionService restrictionService = AuthPlugin.bootstrap().restrictionService();
     private final OnlinePlayerRegistry onlinePlayerRegistry = AuthPlugin.bootstrap().onlinePlayerRegistry();
     private final Map<UUID, Vec3> frozenPositions = new ConcurrentHashMap<>();
@@ -68,7 +70,12 @@ public final class NeoForgeAuthRuntime {
         }
         UUID playerUuid = player.getUUID();
         this.frozenPositions.put(playerUuid, player.position());
-        this.onlinePlayerRegistry.playerJoined(playerUuid, player.getGameProfile().getName());
+        String playerName = player.getGameProfile().getName();
+        this.onlinePlayerRegistry.playerJoined(playerUuid, playerName);
+        this.playerProfileService.updatePlayerName(playerUuid, playerName).exceptionally(throwable -> {
+            AuthPlugin.LOGGER.warn("Failed to update player profile for {}", playerUuid, throwable);
+            return null;
+        });
         this.authService.onPlayerDisconnect(playerUuid);
         this.authService.tryAutoLogin(playerUuid).whenComplete((loggedIn, throwable) -> {
             if (player.getServer() == null) {

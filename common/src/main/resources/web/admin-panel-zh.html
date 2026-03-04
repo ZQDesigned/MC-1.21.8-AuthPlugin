@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AuthPlugin 管理面板</title>
+  <style>
+    :root {
+      --bg: #f5f8ff;
+      --card: #ffffff;
+      --text: #172134;
+      --muted: #62708a;
+      --line: #d5deef;
+      --primary: #1f6feb;
+      --primary-hover: #1559c0;
+      --danger: #d84a4a;
+      --danger-hover: #bf2f2f;
+      --ok-bg: #e7f8ed;
+      --ok-text: #1f7a41;
+      --warn-bg: #fee9e9;
+      --warn-text: #a12a2a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top right, #dce8ff 0%, var(--bg) 36%);
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 14px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(23, 33, 52, 0.08);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .sub {
+      margin-top: 8px;
+      color: var(--muted);
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    input[type="number"] {
+      width: 130px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    button {
+      border: none;
+      border-radius: 9px;
+      padding: 8px 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    button.primary:hover {
+      background: var(--primary-hover);
+    }
+
+    button.ghost {
+      background: #eaf1ff;
+      color: #244471;
+    }
+
+    button.ghost:hover {
+      background: #dce8ff;
+    }
+
+    button.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    button.danger:hover {
+      background: var(--danger-hover);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #status {
+      min-height: 22px;
+      margin-top: 10px;
+      font-weight: 700;
+      padding: 0 2px;
+    }
+
+    #status.ok { color: var(--ok-text); }
+    #status.err { color: var(--warn-text); }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .chip {
+      background: #e8efff;
+      border: 1px solid #ccdafe;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    code {
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .token-text {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 700;
+    }
+
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .tag.active {
+      background: var(--ok-bg);
+      color: var(--ok-text);
+    }
+
+    .tag.disabled {
+      background: var(--warn-bg);
+      color: var(--warn-text);
+    }
+
+    .actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .empty {
+      color: var(--muted);
+      margin: 10px 0 4px;
+    }
+
+    @media (max-width: 900px) {
+      table, thead, tbody, tr, th, td {
+        display: block;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tr {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        padding: 8px;
+      }
+
+      td {
+        border-bottom: none;
+        padding: 4px 0;
+      }
+
+      td::before {
+        content: attr(data-label) ": ";
+        color: var(--muted);
+        font-weight: 700;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>AuthPlugin 管理面板</h1>
+    <div class="sub">支持批量生成 Token、禁用/删除 Token，并展示在线玩家状态。</div>
+    <div class="row">
+      <label for="generateCount">批量生成数量（1-__MAX_BATCH_COUNT__）</label>
+      <input id="generateCount" type="number" min="1" max="__MAX_BATCH_COUNT__" value="10" />
+      <button class="primary" id="generateBtn">批量生成</button>
+      <button class="ghost" id="refreshAllBtn">刷新全部</button>
+    </div>
+    <div id="status"></div>
+    <div id="generatedTokens" class="chips"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content: space-between;">
+      <h2>在线玩家</h2>
+      <span class="meta" id="playersCount"></span>
+    </div>
+    <div id="playersWrap"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content: space-between;">
+      <h2>Token 列表</h2>
+      <span class="meta" id="tokensCount"></span>
+    </div>
+    <div id="tokensWrap"></div>
+  </div>
+</div>
+
+<script>
+  const MAX_BATCH_COUNT = __MAX_BATCH_COUNT__;
+  const statusEl = document.getElementById('status');
+  const generatedTokensEl = document.getElementById('generatedTokens');
+  const playersWrapEl = document.getElementById('playersWrap');
+  const tokensWrapEl = document.getElementById('tokensWrap');
+  const playersCountEl = document.getElementById('playersCount');
+  const tokensCountEl = document.getElementById('tokensCount');
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function setStatus(message, isError = false) {
+    statusEl.textContent = message || '';
+    statusEl.className = isError ? 'err' : 'ok';
+  }
+
+  function formatTime(timestamp) {
+    if (!timestamp) {
+      return '-';
+    }
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return '-';
+    }
+    return date.toLocaleString();
+  }
+
+  async function apiRequest(url, options = {}) {
+    const response = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+
+    if (!response.ok) {
+      let error = '请求失败';
+      try {
+        const data = await response.json();
+        error = data.error || error;
+      } catch (ignored) {
+      }
+      throw new Error(error);
+    }
+
+    if (response.status === 204) {
+      return {};
+    }
+    return response.json();
+  }
+
+  function renderGeneratedTokens(tokens) {
+    if (!tokens || tokens.length === 0) {
+      generatedTokensEl.innerHTML = '';
+      return;
+    }
+    generatedTokensEl.innerHTML = tokens
+      .map(token => '<span class="chip">' + escapeHtml(token) + '</span>')
+      .join('');
+  }
+
+  function renderPlayers(players) {
+    playersCountEl.textContent = '共 ' + players.length + ' 人在线';
+    if (players.length === 0) {
+      playersWrapEl.innerHTML = '<p class="empty">当前没有在线玩家。</p>';
+      return;
+    }
+
+    const rows = players.map(player => `
+      <tr>
+        <td data-label="玩家名">${escapeHtml(player.name || '-')}</td>
+        <td data-label="UUID"><code>${escapeHtml(player.uuid || '-')}</code></td>
+        <td data-label="登录状态">${player.loggedIn ? '<span class="tag active">已登录</span>' : '<span class="tag disabled">未登录</span>'}</td>
+        <td data-label="绑定 Token"><span class="token-text">${escapeHtml(player.boundToken || '-')}</span></td>
+      </tr>
+    `).join('');
+
+    playersWrapEl.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>玩家名</th>
+            <th>UUID</th>
+            <th>登录状态</th>
+            <th>绑定 Token</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function renderTokens(tokens) {
+    tokensCountEl.textContent = '共 ' + tokens.length + ' 条 Token';
+    if (tokens.length === 0) {
+      tokensWrapEl.innerHTML = '<p class="empty">当前没有 Token。</p>';
+      return;
+    }
+
+    const rows = tokens.map(token => {
+      const statusTag = token.disabled
+        ? '<span class="tag disabled">已禁用</span>'
+        : '<span class="tag active">可用</span>';
+      const disableAttr = token.disabled ? 'disabled' : '';
+      const encoded = encodeURIComponent(token.token);
+
+      return `
+        <tr>
+          <td data-label="Token"><span class="token-text">${escapeHtml(token.token)}</span></td>
+          <td data-label="绑定 UUID"><code>${escapeHtml(token.boundUuid || '-')}</code></td>
+          <td data-label="玩家名">${escapeHtml(token.boundPlayerName || '-')}</td>
+          <td data-label="状态">${statusTag}</td>
+          <td data-label="创建时间">${escapeHtml(formatTime(token.createdAt))}</td>
+          <td data-label="最近使用">${escapeHtml(formatTime(token.lastUsedAt))}</td>
+          <td data-label="操作">
+            <div class="actions">
+              <button class="ghost" data-action="disable" data-token="${encoded}" ${disableAttr}>禁用</button>
+              <button class="danger" data-action="delete" data-token="${encoded}">删除</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tokensWrapEl.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>绑定 UUID</th>
+            <th>玩家名</th>
+            <th>状态</th>
+            <th>创建时间</th>
+            <th>最近使用</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  async function loadPlayers() {
+    const data = await apiRequest('/api/players');
+    renderPlayers(data.players || []);
+  }
+
+  async function loadTokens() {
+    const data = await apiRequest('/api/tokens');
+    renderTokens(data.tokens || []);
+  }
+
+  async function refreshAll(showStatus = false) {
+    try {
+      await Promise.all([loadPlayers(), loadTokens()]);
+      if (showStatus) {
+        setStatus('数据刷新成功。');
+      }
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  async function generateTokens() {
+    const countInput = document.getElementById('generateCount');
+    const count = Number.parseInt(countInput.value, 10);
+    if (!Number.isInteger(count) || count < 1 || count > MAX_BATCH_COUNT) {
+      setStatus('数量必须是 1 到 ' + MAX_BATCH_COUNT + ' 的整数。', true);
+      return;
+    }
+
+    try {
+      const data = await apiRequest('/api/tokens/generate', {
+        method: 'POST',
+        body: JSON.stringify({ count })
+      });
+      renderGeneratedTokens(data.tokens || []);
+      setStatus('成功生成 ' + (data.count || 0) + ' 个 Token。');
+      await refreshAll(false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  async function disableToken(encodedToken) {
+    try {
+      await apiRequest('/api/tokens/' + encodedToken + '/disable', { method: 'PATCH' });
+      setStatus('Token 已禁用。');
+      await refreshAll(false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  async function deleteToken(encodedToken) {
+    try {
+      await apiRequest('/api/tokens/' + encodedToken, { method: 'DELETE' });
+      setStatus('Token 已删除。');
+      await refreshAll(false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  tokensWrapEl.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement)) {
+      return;
+    }
+    const action = target.dataset.action;
+    const token = target.dataset.token;
+    if (!action || !token) {
+      return;
+    }
+    if (action === 'disable') {
+      await disableToken(token);
+      return;
+    }
+    if (action === 'delete') {
+      await deleteToken(token);
+    }
+  });
+
+  document.getElementById('generateBtn').addEventListener('click', generateTokens);
+  document.getElementById('refreshAllBtn').addEventListener('click', () => refreshAll(true));
+  refreshAll(false);
+</script>
+</body>
+</html>
