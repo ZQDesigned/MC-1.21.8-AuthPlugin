@@ -6,7 +6,7 @@ import net.neoforged.fml.common.Mod;
 @Mod(AuthPlugin.MOD_ID)
 public final class AuthPluginNeoForge {
     public AuthPluginNeoForge() {
-        // Run our common setup.
         AuthPlugin.init();
+        new NeoForgeAuthRuntime().register();
     }
 }
