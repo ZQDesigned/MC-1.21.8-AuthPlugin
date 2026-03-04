@@ -20,13 +20,26 @@ public final class DatabaseManager {
         "org.h2.Driver",
         "city.zqdesigned.mc.authplugin.shadow.org.h2.Driver"
     };
+    private static final String CREATE_TOKENS_TABLE_SQL = """
+        CREATE TABLE IF NOT EXISTS tokens (
+            token VARCHAR PRIMARY KEY,
+            bound_uuid VARCHAR,
+            disabled BOOLEAN DEFAULT FALSE,
+            created_at BIGINT NOT NULL,
+            last_used_at BIGINT NOT NULL
+        )
+        """;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ExecutorService executorService = Executors.newFixedThreadPool(2, new DbThreadFactory());
     private final Path databaseDirectory;
     private final String jdbcUrl;
 
     public DatabaseManager() {
-        this(Path.of("config", "authplugin", "database"), "jdbc:h2:file:./config/authplugin/database/authplugin");
+        this(Path.of("config", "authplugin", "database"));
+    }
+
+    public DatabaseManager(Path databaseDirectory) {
+        this(databaseDirectory, toJdbcFileUrl(databaseDirectory.resolve("authplugin")));
     }
 
     public DatabaseManager(Path databaseDirectory, String jdbcUrl) {
@@ -54,6 +67,7 @@ public final class DatabaseManager {
         Objects.requireNonNull(function, "function");
         return CompletableFuture.supplyAsync(() -> {
             try (Connection connection = this.openConnection()) {
+                this.ensureSchema(connection);
                 return function.apply(connection);
             } catch (Exception exception) {
                 throw new RuntimeException(exception);
@@ -65,6 +79,7 @@ public final class DatabaseManager {
         Objects.requireNonNull(consumer, "consumer");
         return CompletableFuture.runAsync(() -> {
             try (Connection connection = this.openConnection()) {
+                this.ensureSchema(connection);
                 consumer.accept(connection);
             } catch (Exception exception) {
                 throw new RuntimeException(exception);
@@ -76,6 +91,7 @@ public final class DatabaseManager {
         Objects.requireNonNull(function, "function");
         return CompletableFuture.supplyAsync(() -> {
             try (Connection connection = this.openConnection()) {
+                this.ensureSchema(connection);
                 connection.setAutoCommit(false);
                 try {
                     T result = function.apply(connection);
@@ -109,16 +125,7 @@ public final class DatabaseManager {
     private void createSchema() throws SQLException {
         try (Connection connection = this.openConnection();
              Statement statement = connection.createStatement()) {
-            statement.execute("""
-                CREATE TABLE IF NOT EXISTS tokens (
-                    token VARCHAR PRIMARY KEY,
-                    bound_uuid VARCHAR,
-                    disabled BOOLEAN DEFAULT FALSE,
-                    created_at BIGINT NOT NULL,
-                    last_used_at BIGINT NOT NULL
-                )
-                """
-            );
+            statement.execute(CREATE_TOKENS_TABLE_SQL);
         }
     }
 
@@ -136,6 +143,17 @@ public final class DatabaseManager {
             }
         }
         throw new SQLException("H2 JDBC driver class not found on runtime classpath");
+    }
+
+    private void ensureSchema(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute(CREATE_TOKENS_TABLE_SQL);
+        }
+    }
+
+    private static String toJdbcFileUrl(Path databaseFile) {
+        String normalized = databaseFile.toAbsolutePath().normalize().toString();
+        return "jdbc:h2:file:" + normalized;
     }
 
     @FunctionalInterface
