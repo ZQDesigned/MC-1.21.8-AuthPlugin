@@ -69,7 +69,7 @@ public final class TokenService {
         }
 
         int remaining = targetCount - inserted.size();
-        int batchSize = Math.max(remaining * 2, remaining);
+        int batchSize = remaining;
         List<String> candidates = this.tokenGenerator.generateBatch(batchSize);
         return this.tokenDao.insertBatchIgnoringDuplicates(candidates, System.currentTimeMillis())
             .thenCompose(stored -> {

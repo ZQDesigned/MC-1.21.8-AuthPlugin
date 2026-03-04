@@ -31,6 +31,7 @@ class TokenServiceIntegrationTest {
 
             assertEquals(40, tokens.size());
             assertEquals(40, new HashSet<>(tokens).size());
+            assertEquals(40, tokenService.listTokens().join().size());
             for (String token : tokens) {
                 assertEquals(16, token.length());
                 assertTrue(token.matches("^[A-Za-z0-9]{16}$"));

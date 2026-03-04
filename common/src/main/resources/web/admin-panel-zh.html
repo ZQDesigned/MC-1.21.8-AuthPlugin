@@ -45,6 +45,13 @@
       margin-bottom: 14px;
     }
 
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 14px;
+      align-items: start;
+    }
+
     h1 {
       margin: 0;
       font-size: 28px;
@@ -206,6 +213,10 @@
     }
 
     @media (max-width: 900px) {
+      .split {
+        grid-template-columns: 1fr;
+      }
+
       table, thead, tbody, tr, th, td {
         display: block;
       }
@@ -250,20 +261,22 @@
     <div id="generatedTokens" class="chips"></div>
   </div>
 
-  <div class="panel">
-    <div class="row" style="justify-content: space-between;">
-      <h2>在线玩家</h2>
-      <span class="meta" id="playersCount"></span>
+  <div class="split">
+    <div class="panel">
+      <div class="row" style="justify-content: space-between;">
+        <h2>在线玩家</h2>
+        <span class="meta" id="playersCount"></span>
+      </div>
+      <div id="playersWrap"></div>
     </div>
-    <div id="playersWrap"></div>
-  </div>
 
-  <div class="panel">
-    <div class="row" style="justify-content: space-between;">
-      <h2>Token 列表</h2>
-      <span class="meta" id="tokensCount"></span>
+    <div class="panel">
+      <div class="row" style="justify-content: space-between;">
+        <h2>Token 列表</h2>
+        <span class="meta" id="tokensCount"></span>
+      </div>
+      <div id="tokensWrap"></div>
     </div>
-    <div id="tokensWrap"></div>
   </div>
 </div>
 
