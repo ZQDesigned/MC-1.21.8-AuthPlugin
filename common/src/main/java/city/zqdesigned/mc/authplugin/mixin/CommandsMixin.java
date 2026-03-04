@@ -1,12 +1,12 @@
 package city.zqdesigned.mc.authplugin.mixin;
 
 import city.zqdesigned.mc.authplugin.AuthPlugin;
+import city.zqdesigned.mc.authplugin.message.AuthPromptMessages;
 import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
 import city.zqdesigned.mc.authplugin.restriction.PlayerActionType;
 import com.mojang.brigadier.ParseResults;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -31,7 +31,7 @@ public final class CommandsMixin {
             return;
         }
 
-        player.sendSystemMessage(Component.literal(restrictionService.denialMessage(PlayerActionType.COMMAND)));
+        player.sendSystemMessage(AuthPromptMessages.restrictionDenied(PlayerActionType.COMMAND));
         ci.cancel();
     }
 }

@@ -3,6 +3,7 @@ package city.zqdesigned.mc.authplugin.neoforge;
 import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
 import city.zqdesigned.mc.authplugin.auth.LoginResult;
+import city.zqdesigned.mc.authplugin.message.AuthPromptMessages;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
 import city.zqdesigned.mc.authplugin.restriction.PlayerActionType;
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -84,13 +84,16 @@ public final class NeoForgeAuthRuntime {
             player.getServer().execute(() -> {
                 if (throwable != null) {
                     AuthPlugin.LOGGER.error("Auto-login failed for {}", playerUuid, throwable);
-                    player.sendSystemMessage(Component.literal("Auto-login failed. Please use /login <token>."));
+                    player.sendSystemMessage(AuthPromptMessages.autoLoginFailed());
                     return;
                 }
                 if (Boolean.TRUE.equals(loggedIn)) {
-                    player.sendSystemMessage(Component.literal("Auto-login successful."));
+                    player.sendSystemMessage(AuthPromptMessages.autoLoginSuccessful());
+                    player.sendSystemMessage(AuthPromptMessages.welcomeHome(playerName));
                 } else {
-                    player.sendSystemMessage(Component.literal("Please login using /login <token>."));
+                    player.sendSystemMessage(AuthPromptMessages.unauthorizedWelcome());
+                    player.sendSystemMessage(AuthPromptMessages.unauthorizedLoginHint());
+                    player.sendSystemMessage(AuthPromptMessages.unauthorizedTokenRequestHint());
                 }
             });
         });
@@ -117,7 +120,7 @@ public final class NeoForgeAuthRuntime {
         }
 
         event.setCanceled(true);
-        player.sendSystemMessage(Component.literal(this.restrictionService.denialMessage(PlayerActionType.COMMAND)));
+        player.sendSystemMessage(AuthPromptMessages.restrictionDenied(PlayerActionType.COMMAND));
     }
 
     private void onAttackEntity(AttackEntityEvent event) {
@@ -191,16 +194,16 @@ public final class NeoForgeAuthRuntime {
         if (this.restrictionService.isActionAllowed(serverPlayer.getUUID(), actionType)) {
             return false;
         }
-        serverPlayer.sendSystemMessage(Component.literal(this.restrictionService.denialMessage(actionType)));
+        serverPlayer.sendSystemMessage(AuthPromptMessages.restrictionDenied(actionType));
         return true;
     }
 
     private void onLoginResult(ServerPlayer player, LoginResult result, Throwable throwable) {
         if (throwable != null) {
             AuthPlugin.LOGGER.error("Login processing failed for {}", player.getUUID(), throwable);
-            player.sendSystemMessage(Component.literal("Login failed due to internal error."));
+            player.sendSystemMessage(AuthPromptMessages.internalLoginError());
             return;
         }
-        player.sendSystemMessage(Component.literal(result.message()));
+        player.sendSystemMessage(AuthPromptMessages.loginResult(result));
     }
 }
