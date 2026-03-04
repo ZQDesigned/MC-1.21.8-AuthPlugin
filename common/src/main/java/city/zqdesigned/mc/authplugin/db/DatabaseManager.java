@@ -16,6 +16,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class DatabaseManager {
+    private static final String[] H2_DRIVER_CLASS_NAMES = {
+        "org.h2.Driver",
+        "city.zqdesigned.mc.authplugin.shadow.org.h2.Driver"
+    };
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ExecutorService executorService = Executors.newFixedThreadPool(2, new DbThreadFactory());
     private final Path databaseDirectory;
@@ -37,6 +41,7 @@ public final class DatabaseManager {
 
         try {
             Files.createDirectories(this.databaseDirectory);
+            this.ensureH2DriverLoaded();
             this.createSchema();
             AuthPlugin.LOGGER.info("H2 database initialized at {}", this.databaseDirectory.toAbsolutePath());
         } catch (Exception exception) {
@@ -119,6 +124,18 @@ public final class DatabaseManager {
 
     private Connection openConnection() throws SQLException {
         return DriverManager.getConnection(this.jdbcUrl);
+    }
+
+    private void ensureH2DriverLoaded() throws SQLException {
+        for (String driverClassName : H2_DRIVER_CLASS_NAMES) {
+            try {
+                Class.forName(driverClassName);
+                return;
+            } catch (ClassNotFoundException ignored) {
+                // try next possible class name
+            }
+        }
+        throw new SQLException("H2 JDBC driver class not found on runtime classpath");
     }
 
     @FunctionalInterface
