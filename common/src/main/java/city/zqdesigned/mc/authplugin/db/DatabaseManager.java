@@ -16,10 +16,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class DatabaseManager {
-    private static final Path DATABASE_DIRECTORY = Path.of("config", "authplugin", "database");
-    private static final String JDBC_URL = "jdbc:h2:file:./config/authplugin/database/authplugin";
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ExecutorService executorService = Executors.newFixedThreadPool(2, new DbThreadFactory());
+    private final Path databaseDirectory;
+    private final String jdbcUrl;
+
+    public DatabaseManager() {
+        this(Path.of("config", "authplugin", "database"), "jdbc:h2:file:./config/authplugin/database/authplugin");
+    }
+
+    public DatabaseManager(Path databaseDirectory, String jdbcUrl) {
+        this.databaseDirectory = databaseDirectory;
+        this.jdbcUrl = jdbcUrl;
+    }
 
     public void initialize() throws SQLException {
         if (!this.initialized.compareAndSet(false, true)) {
@@ -27,9 +36,9 @@ public final class DatabaseManager {
         }
 
         try {
-            Files.createDirectories(DATABASE_DIRECTORY);
+            Files.createDirectories(this.databaseDirectory);
             this.createSchema();
-            AuthPlugin.LOGGER.info("H2 database initialized at {}", DATABASE_DIRECTORY.toAbsolutePath());
+            AuthPlugin.LOGGER.info("H2 database initialized at {}", this.databaseDirectory.toAbsolutePath());
         } catch (Exception exception) {
             this.initialized.set(false);
             throw new SQLException("Failed to initialize database", exception);
@@ -109,7 +118,7 @@ public final class DatabaseManager {
     }
 
     private Connection openConnection() throws SQLException {
-        return DriverManager.getConnection(JDBC_URL);
+        return DriverManager.getConnection(this.jdbcUrl);
     }
 
     @FunctionalInterface
