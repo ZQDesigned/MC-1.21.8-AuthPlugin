@@ -5,6 +5,7 @@ import city.zqdesigned.mc.authplugin.auth.AuthService;
 import city.zqdesigned.mc.authplugin.config.AuthPluginConfig;
 import city.zqdesigned.mc.authplugin.config.ConfigManager;
 import city.zqdesigned.mc.authplugin.db.DatabaseManager;
+import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
 import city.zqdesigned.mc.authplugin.session.SessionManager;
 import city.zqdesigned.mc.authplugin.token.TokenDao;
 import city.zqdesigned.mc.authplugin.token.TokenService;
@@ -21,6 +22,7 @@ public final class AuthPluginBootstrap {
     private final TokenService tokenService = new TokenService(this.tokenDao);
     private final SessionManager sessionManager = new SessionManager();
     private final AuthService authService = new AuthService(this.tokenService, this.sessionManager);
+    private final AuthRestrictionService restrictionService = new AuthRestrictionService(this.authService);
     private final OnlinePlayerRegistry onlinePlayerRegistry = new OnlinePlayerRegistry();
     private volatile AuthPluginConfig config;
     private volatile WebAdminServer webAdminServer;
@@ -76,5 +78,9 @@ public final class AuthPluginBootstrap {
 
     public OnlinePlayerRegistry onlinePlayerRegistry() {
         return this.onlinePlayerRegistry;
+    }
+
+    public AuthRestrictionService restrictionService() {
+        return this.restrictionService;
     }
 }
