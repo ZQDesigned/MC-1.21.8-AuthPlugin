@@ -4,6 +4,8 @@ import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.config.AuthPluginConfig;
 import city.zqdesigned.mc.authplugin.config.ConfigManager;
 import city.zqdesigned.mc.authplugin.db.DatabaseManager;
+import city.zqdesigned.mc.authplugin.token.TokenDao;
+import city.zqdesigned.mc.authplugin.token.TokenService;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -11,6 +13,8 @@ public final class AuthPluginBootstrap {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final ConfigManager configManager = new ConfigManager();
     private final DatabaseManager databaseManager = new DatabaseManager();
+    private final TokenDao tokenDao = new TokenDao(this.databaseManager);
+    private final TokenService tokenService = new TokenService(this.tokenDao);
     private volatile AuthPluginConfig config;
 
     public void start() {
@@ -41,5 +45,9 @@ public final class AuthPluginBootstrap {
 
     public void stop() {
         this.databaseManager.shutdown();
+    }
+
+    public TokenService tokenService() {
+        return this.tokenService;
     }
 }
