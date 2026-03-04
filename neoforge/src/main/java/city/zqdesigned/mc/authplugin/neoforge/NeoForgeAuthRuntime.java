@@ -24,6 +24,7 @@ import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 public final class NeoForgeAuthRuntime {
@@ -46,6 +47,7 @@ public final class NeoForgeAuthRuntime {
         NeoForge.EVENT_BUS.addListener(this::onBlockBreak);
         NeoForge.EVENT_BUS.addListener(this::onBlockPlace);
         NeoForge.EVENT_BUS.addListener(this::onServerTick);
+        NeoForge.EVENT_BUS.addListener(this::onServerStopping);
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
@@ -185,6 +187,10 @@ public final class NeoForgeAuthRuntime {
             }
             player.setDeltaMovement(Vec3.ZERO);
         }
+    }
+
+    private void onServerStopping(ServerStoppingEvent event) {
+        AuthPlugin.stop();
     }
 
     private boolean denyIfRequired(Player player, PlayerActionType actionType) {

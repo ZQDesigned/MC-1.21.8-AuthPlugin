@@ -67,9 +67,14 @@ public final class AuthPluginBootstrap {
     }
 
     public void stop() {
+        if (!this.started.compareAndSet(true, false)) {
+            return;
+        }
+
         this.authService.resetSessions();
         if (this.webAdminServer != null) {
             this.webAdminServer.stop();
+            this.webAdminServer = null;
         }
         this.databaseManager.shutdown();
     }

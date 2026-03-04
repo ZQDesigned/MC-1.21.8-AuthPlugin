@@ -13,9 +13,13 @@ public final class AuthPlugin {
 
     public static void init() {
         if (SHUTDOWN_HOOK_ADDED.compareAndSet(false, true)) {
-            Runtime.getRuntime().addShutdownHook(new Thread(BOOTSTRAP::stop, "authplugin-shutdown"));
+            Runtime.getRuntime().addShutdownHook(new Thread(AuthPlugin::stop, "authplugin-shutdown"));
         }
         BOOTSTRAP.start();
+    }
+
+    public static void stop() {
+        BOOTSTRAP.stop();
     }
 
     public static AuthPluginBootstrap bootstrap() {

@@ -76,11 +76,21 @@ public final class WebAdminServer implements WebAdminLifecycle {
     }
 
     public void stop() {
-        if (this.app == null) {
+        Javalin runningApp = this.app;
+        if (runningApp == null) {
             return;
         }
-        this.app.stop();
-        this.app = null;
+
+        try {
+            runningApp.stop();
+        } finally {
+            try {
+                runningApp.jettyServer().server().destroy();
+            } catch (Exception exception) {
+                AuthPlugin.LOGGER.warn("Failed to destroy Jetty server cleanly", exception);
+            }
+            this.app = null;
+        }
     }
 
     private void requireBasicAuth(Context ctx) {
