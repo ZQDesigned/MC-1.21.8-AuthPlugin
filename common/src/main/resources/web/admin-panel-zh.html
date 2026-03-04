@@ -389,7 +389,8 @@
       const statusTag = token.disabled
         ? '<span class="tag disabled">已禁用</span>'
         : '<span class="tag active">可用</span>';
-      const disableAttr = token.disabled ? 'disabled' : '';
+      const toggleAction = token.disabled ? 'enable' : 'disable';
+      const toggleText = token.disabled ? '解除禁用' : '禁用';
       const encoded = encodeURIComponent(token.token);
 
       return `
@@ -402,7 +403,7 @@
           <td data-label="最近使用">${escapeHtml(formatTime(token.lastUsedAt))}</td>
           <td data-label="操作">
             <div class="actions">
-              <button class="ghost" data-action="disable" data-token="${encoded}" ${disableAttr}>禁用</button>
+              <button class="ghost" data-action="${toggleAction}" data-token="${encoded}">${toggleText}</button>
               <button class="danger" data-action="delete" data-token="${encoded}">删除</button>
             </div>
           </td>
@@ -480,6 +481,16 @@
     }
   }
 
+  async function enableToken(encodedToken) {
+    try {
+      await apiRequest('/api/tokens/' + encodedToken + '/enable', { method: 'PATCH' });
+      setStatus('Token 已解除禁用。');
+      await refreshAll(false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
   async function deleteToken(encodedToken) {
     try {
       await apiRequest('/api/tokens/' + encodedToken, { method: 'DELETE' });
@@ -502,6 +513,10 @@
     }
     if (action === 'disable') {
       await disableToken(token);
+      return;
+    }
+    if (action === 'enable') {
+      await enableToken(token);
       return;
     }
     if (action === 'delete') {

@@ -62,6 +62,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.app.post("/api/tokens", this::handleAddToken);
         this.app.delete("/api/tokens/{token}", this::handleDeleteToken);
         this.app.patch("/api/tokens/{token}/disable", this::handleDisableToken);
+        this.app.patch("/api/tokens/{token}/enable", this::handleEnableToken);
         this.app.post("/api/tokens/generate", this::handleGenerateTokens);
         this.app.exception(Exception.class, (exception, ctx) -> {
             AuthPlugin.LOGGER.error("Web API error", exception);
@@ -174,6 +175,16 @@ public final class WebAdminServer implements WebAdminLifecycle {
             return;
         }
         ctx.json(Map.of("token", token, "disabled", true));
+    }
+
+    private void handleEnableToken(Context ctx) {
+        String token = ctx.pathParam("token");
+        boolean enabled = this.tokenService.enableToken(token).join();
+        if (!enabled) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "Token not found"));
+            return;
+        }
+        ctx.json(Map.of("token", token, "disabled", false));
     }
 
     private void handleGenerateTokens(Context ctx) {
