@@ -424,7 +424,7 @@
     <section class="topbar panel" style="box-shadow: none; margin: 0;">
       <div>
         <h2 id="pageTitle">概览</h2>
-        <div id="pageSubTitle" class="meta">查看在线玩家、Token 状态与快速操作。</div>
+        <div id="pageSubTitle" class="meta">查看在线玩家与 Token 状态概览。</div>
       </div>
       <div class="row">
         <button id="refreshNowBtn" class="ghost">立即刷新</button>
@@ -447,16 +447,6 @@
           <p class="card-title">已禁用 Token</p>
           <p class="card-value" id="overviewDisabledCount">0</p>
         </div>
-      </div>
-
-      <div class="inline-panel">
-        <h3>批量生成 Token</h3>
-        <p class="muted">支持 1-__MAX_BATCH_COUNT__。生成后会自动写入数据库并立即显示。</p>
-        <div class="row">
-          <input id="generateCount" type="number" min="1" max="__MAX_BATCH_COUNT__" value="10" style="max-width: 180px;" />
-          <button id="generateBtn" class="primary">生成</button>
-        </div>
-        <div id="generatedTokens" class="chips"></div>
       </div>
     </section>
 
@@ -485,6 +475,16 @@
     </section>
 
     <section id="page-tokens" class="page hidden">
+      <div class="inline-panel">
+        <h3>批量生成 Token</h3>
+        <p class="muted">支持 1-__MAX_BATCH_COUNT__。生成后会自动写入数据库并立即显示。</p>
+        <div class="row">
+          <input id="generateCount" type="number" min="1" max="__MAX_BATCH_COUNT__" value="10" style="max-width: 180px;" />
+          <button id="generateBtn" class="primary">生成</button>
+        </div>
+        <div id="generatedTokens" class="chips"></div>
+      </div>
+
       <div class="row" style="justify-content: space-between;">
         <strong>Token 列表</strong>
         <span id="tokensCount" class="muted">共 0 条</span>
@@ -918,9 +918,9 @@
     state.currentPage = page;
 
     const pageTitles = {
-      overview: ['概览', '查看在线玩家、Token 状态与快速操作。'],
+      overview: ['概览', '查看在线玩家与 Token 状态概览。'],
       players: ['在线玩家', '伪实时查看当前在线玩家与登录状态。'],
-      tokens: ['Token 管理', '支持分页浏览、禁用、解除禁用与删除。']
+      tokens: ['Token 管理', '支持批量生成、分页浏览、禁用、解除禁用与删除。']
     };
 
     const [title, subtitle] = pageTitles[page] || pageTitles.overview;
