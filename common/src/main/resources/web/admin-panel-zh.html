@@ -389,6 +389,22 @@
       font-size: 12px;
     }
 
+    .log-lines {
+      margin: 10px 0 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #0f1728;
+      color: #d6e2ff;
+      padding: 10px;
+      max-height: 360px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
     @media (max-width: 1080px) {
       .app-shell {
         grid-template-columns: 1fr;
@@ -431,6 +447,7 @@
     <button class="menu-btn active" data-page="overview">概览</button>
     <button class="menu-btn" data-page="players">在线玩家</button>
     <button class="menu-btn" data-page="tokens">Token 管理</button>
+    <button class="menu-btn" data-page="server">服务器控制</button>
 
     <div class="sidebar-meta">
       <div id="tokenExpireInfo">会话状态：未登录</div>
@@ -522,6 +539,62 @@
         </div>
       </div>
     </section>
+
+    <section id="page-server" class="page hidden">
+      <div class="cards">
+        <div class="card">
+          <p class="card-title">服务器状态</p>
+          <p class="card-value" id="serverRunningValue">-</p>
+        </div>
+        <div class="card">
+          <p class="card-title">在线人数</p>
+          <p class="card-value" id="serverLoadValue">-</p>
+        </div>
+        <div class="card">
+          <p class="card-title">StopMsgMod</p>
+          <p class="card-value" id="serverStopMsgValue">-</p>
+        </div>
+      </div>
+
+      <div class="inline-panel">
+        <div class="row" style="justify-content: space-between;">
+          <strong>控制台指令</strong>
+          <span id="serverUptimeInfo" class="muted">运行时长：-</span>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <input id="serverCommandInput" type="text" placeholder="例如：say 服务器维护通知" style="min-width: 320px; flex: 1;" />
+          <button id="serverCommandBtn" class="primary">执行指令</button>
+        </div>
+        <div id="serverCommandResult" class="muted" style="margin-top: 8px;"></div>
+      </div>
+
+      <div class="inline-panel">
+        <div class="row" style="justify-content: space-between;">
+          <strong>关服维护</strong>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <input id="shutdownMessageInput" type="text" placeholder="关服通知（可选，支持 StopMsgMod）" style="min-width: 320px; flex: 1;" />
+          <button id="shutdownBtn" class="danger">关闭服务器</button>
+        </div>
+      </div>
+
+      <div class="inline-panel">
+        <div class="row" style="justify-content: space-between;">
+          <strong>服务器日志</strong>
+          <div class="row">
+            <label for="serverLogLimit" class="muted">显示行数</label>
+            <select id="serverLogLimit" style="width: 100px;">
+              <option value="100">100</option>
+              <option value="200" selected>200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+            <button id="refreshLogsBtn" class="ghost">刷新日志</button>
+          </div>
+        </div>
+        <pre id="serverLogLines" class="log-lines"></pre>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -535,6 +608,9 @@
     currentPage: 'overview',
     players: [],
     tokens: [],
+    serverStatus: null,
+    serverLogs: [],
+    serverLogLimit: 200,
     generatedTokens: [],
     playersPage: 1,
     tokensPage: 1,
@@ -544,7 +620,9 @@
     expiresAt: 0,
     pollTimer: null,
     refreshInFlight: false,
-    generateInFlight: false
+    generateInFlight: false,
+    serverCommandInFlight: false,
+    shutdownInFlight: false
   };
 
   const loginViewEl = document.getElementById('loginView');
@@ -816,6 +894,50 @@
       + '</table>';
   }
 
+  function formatDuration(durationMillis) {
+    if (!durationMillis || durationMillis < 0) {
+      return '-';
+    }
+
+    const totalSeconds = Math.floor(durationMillis / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+  }
+
+  function renderServerControl() {
+    const status = state.serverStatus;
+    const runningValueEl = document.getElementById('serverRunningValue');
+    const loadValueEl = document.getElementById('serverLoadValue');
+    const stopMsgValueEl = document.getElementById('serverStopMsgValue');
+    const uptimeInfoEl = document.getElementById('serverUptimeInfo');
+    const logLinesEl = document.getElementById('serverLogLines');
+
+    if (!status || !status.available) {
+      runningValueEl.textContent = '离线';
+      loadValueEl.textContent = '-';
+      stopMsgValueEl.textContent = '未知';
+      uptimeInfoEl.textContent = '运行时长：-';
+    } else {
+      runningValueEl.textContent = status.running ? '运行中' : '停止中';
+      loadValueEl.textContent = String(status.onlinePlayers || 0) + ' / ' + String(status.maxPlayers || 0);
+      stopMsgValueEl.textContent = status.stopMsgAvailable ? '可用' : '未安装';
+      uptimeInfoEl.textContent = '运行时长：' + formatDuration(status.uptimeMillis || 0);
+    }
+
+    if (!state.serverLogs.length) {
+      logLinesEl.textContent = '暂无日志数据。';
+    } else {
+      logLinesEl.textContent = state.serverLogs.join('\n');
+    }
+
+    if (state.currentPage === 'server') {
+      // Keep the latest log lines visible during polling updates.
+      logLinesEl.scrollTop = logLinesEl.scrollHeight;
+    }
+  }
+
   function updateLastRefresh() {
     lastRefreshInfoEl.textContent = '上次刷新：' + formatTime(Date.now());
   }
@@ -824,6 +946,7 @@
     renderOverview();
     renderPlayers();
     renderTokens();
+    renderServerControl();
   }
 
   async function loadPlayers() {
@@ -836,6 +959,16 @@
     state.tokens = Array.isArray(data.tokens) ? data.tokens : [];
   }
 
+  async function loadServerStatus() {
+    const data = await apiRequest('/api/server/status');
+    state.serverStatus = data || null;
+  }
+
+  async function loadServerLogs() {
+    const data = await apiRequest('/api/server/logs?limit=' + encodeURIComponent(String(state.serverLogLimit)));
+    state.serverLogs = Array.isArray(data.lines) ? data.lines : [];
+  }
+
   async function refreshData(showSuccess) {
     if (!hasUsableAccessToken()) {
       return;
@@ -846,7 +979,11 @@
 
     state.refreshInFlight = true;
     try {
-      await Promise.all([loadPlayers(), loadTokens()]);
+      const tasks = [loadPlayers(), loadTokens(), loadServerStatus()];
+      if (state.currentPage === 'server') {
+        tasks.push(loadServerLogs());
+      }
+      await Promise.all(tasks);
       renderAll();
       updateLastRefresh();
       if (showSuccess) {
@@ -934,7 +1071,8 @@
     const pageTitles = {
       overview: '概览',
       players: '在线玩家',
-      tokens: 'Token 管理'
+      tokens: 'Token 管理',
+      server: '服务器控制'
     };
 
     document.getElementById('pageTitle').textContent = pageTitles[page] || pageTitles.overview;
@@ -981,6 +1119,85 @@
     }
   }
 
+  async function refreshServerLogs(showStatus) {
+    try {
+      await loadServerLogs();
+      renderServerControl();
+      if (showStatus) {
+        setGlobalStatus('日志已刷新。');
+      }
+    } catch (error) {
+      setGlobalStatus(error.message, true);
+    }
+  }
+
+  async function handleExecuteServerCommand() {
+    if (state.serverCommandInFlight) {
+      return;
+    }
+
+    const commandInputEl = document.getElementById('serverCommandInput');
+    const command = commandInputEl.value.trim();
+    if (!command) {
+      setGlobalStatus('请输入要执行的控制台指令。', true);
+      return;
+    }
+
+    const commandBtn = document.getElementById('serverCommandBtn');
+    const commandResultEl = document.getElementById('serverCommandResult');
+    state.serverCommandInFlight = true;
+    commandBtn.disabled = true;
+
+    try {
+      const data = await apiRequest('/api/server/command', {
+        method: 'POST',
+        body: JSON.stringify({ command })
+      });
+      commandResultEl.textContent = '已提交指令：' + (data.command || command);
+      setGlobalStatus('控制台指令已执行。');
+      await refreshData(false);
+    } catch (error) {
+      setGlobalStatus(error.message, true);
+    } finally {
+      state.serverCommandInFlight = false;
+      commandBtn.disabled = false;
+    }
+  }
+
+  async function handleShutdownServer() {
+    if (state.shutdownInFlight) {
+      return;
+    }
+
+    if (!window.confirm('确认关闭服务器吗？此操作不可撤销。')) {
+      return;
+    }
+
+    const shutdownBtn = document.getElementById('shutdownBtn');
+    const shutdownMessage = document.getElementById('shutdownMessageInput').value.trim();
+    state.shutdownInFlight = true;
+    shutdownBtn.disabled = true;
+
+    try {
+      const data = await apiRequest('/api/server/shutdown', {
+        method: 'POST',
+        body: JSON.stringify({ message: shutdownMessage })
+      });
+      if (data.stopMsgUsed) {
+        setGlobalStatus('关服请求已提交，并通过 StopMsgMod 发送通知。');
+      } else if (shutdownMessage) {
+        setGlobalStatus('关服请求已提交，StopMsgMod 不可用，已回退为普通广播。');
+      } else {
+        setGlobalStatus('关服请求已提交。');
+      }
+    } catch (error) {
+      setGlobalStatus(error.message, true);
+    } finally {
+      state.shutdownInFlight = false;
+      shutdownBtn.disabled = false;
+    }
+  }
+
   async function disableToken(encodedToken) {
     try {
       await apiRequest('/api/tokens/' + encodedToken + '/disable', { method: 'PATCH' });
@@ -1023,10 +1240,27 @@
     document.getElementById('logoutBtn').addEventListener('click', handleLogout);
     document.getElementById('refreshNowBtn').addEventListener('click', () => refreshData(true));
     document.getElementById('generateBtn').addEventListener('click', handleGenerateTokens);
+    document.getElementById('serverCommandBtn').addEventListener('click', handleExecuteServerCommand);
+    document.getElementById('shutdownBtn').addEventListener('click', handleShutdownServer);
+    document.getElementById('refreshLogsBtn').addEventListener('click', () => refreshServerLogs(true));
+    document.getElementById('serverLogLimit').addEventListener('change', event => {
+      state.serverLogLimit = Number.parseInt(event.target.value, 10) || 200;
+      refreshServerLogs(false);
+    });
+    document.getElementById('serverCommandInput').addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleExecuteServerCommand();
+      }
+    });
 
     document.querySelectorAll('.menu-btn').forEach(button => {
-      button.addEventListener('click', () => {
-        activatePage(button.dataset.page || 'overview');
+      button.addEventListener('click', async () => {
+        const page = button.dataset.page || 'overview';
+        activatePage(page);
+        if (page === 'server') {
+          await refreshServerLogs(false);
+        }
       });
     });
 
