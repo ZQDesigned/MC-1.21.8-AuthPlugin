@@ -13,7 +13,7 @@ import city.zqdesigned.mc.authplugin.token.TokenDao;
 import city.zqdesigned.mc.authplugin.token.TokenService;
 import city.zqdesigned.mc.authplugin.web.OnlinePlayerRegistry;
 import city.zqdesigned.mc.authplugin.web.WebAdminLifecycle;
-import city.zqdesigned.mc.authplugin.web.WebAdminServerFactory;
+import city.zqdesigned.mc.authplugin.web.WebAdminServer;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -40,7 +40,7 @@ public final class AuthPluginBootstrap {
         try {
             this.config = this.configManager.loadOrCreate();
             this.databaseManager.initialize();
-            this.webAdminServer = WebAdminServerFactory.create(
+            this.webAdminServer = new WebAdminServer(
                 this.tokenService,
                 this.authService,
                 this.onlinePlayerRegistry,
