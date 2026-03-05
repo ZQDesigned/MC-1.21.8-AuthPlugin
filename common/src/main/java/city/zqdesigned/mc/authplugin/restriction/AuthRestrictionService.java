@@ -3,9 +3,13 @@ package city.zqdesigned.mc.authplugin.restriction;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public final class AuthRestrictionService {
+    private static final long DENIAL_MESSAGE_COOLDOWN_MILLIS = 1500L;
     private final AuthService authService;
+    private final ConcurrentMap<DenialMessageKey, Long> denialMessageCooldowns = new ConcurrentHashMap<>();
 
     public AuthRestrictionService(AuthService authService) {
         this.authService = authService;
@@ -41,5 +45,26 @@ public final class AuthRestrictionService {
             case BUILD_OR_BREAK -> "You must login before building or breaking blocks.";
             case COMMAND -> "Only /login <token> is available before authentication.";
         };
+    }
+
+    public boolean shouldSendDenialMessage(UUID playerUuid, PlayerActionType actionType) {
+        long now = System.currentTimeMillis();
+        DenialMessageKey key = new DenialMessageKey(playerUuid, actionType);
+        Long previous = this.denialMessageCooldowns.putIfAbsent(key, now);
+        if (previous == null) {
+            return true;
+        }
+        if (now - previous >= DENIAL_MESSAGE_COOLDOWN_MILLIS) {
+            this.denialMessageCooldowns.put(key, now);
+            return true;
+        }
+        return false;
+    }
+
+    public void clearDenialCooldown(UUID playerUuid) {
+        this.denialMessageCooldowns.keySet().removeIf(key -> key.playerUuid().equals(playerUuid));
+    }
+
+    private record DenialMessageKey(UUID playerUuid, PlayerActionType actionType) {
     }
 }

@@ -3,6 +3,7 @@ package city.zqdesigned.mc.authplugin.neoforge;
 import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
 import city.zqdesigned.mc.authplugin.auth.LoginResult;
+import city.zqdesigned.mc.authplugin.auth.LoginResultType;
 import city.zqdesigned.mc.authplugin.message.AuthPromptMessages;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
@@ -30,6 +31,8 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 public final class NeoForgeAuthRuntime {
+    private static final int FREEZE_CORRECTION_INTERVAL_TICKS = 5;
+    private static final double FREEZE_TELEPORT_DISTANCE_SQR = 0.09D;
     private final AuthService authService = AuthPlugin.bootstrap().authService();
     private final PlayerProfileService playerProfileService = AuthPlugin.bootstrap().playerProfileService();
     private final AuthRestrictionService restrictionService = AuthPlugin.bootstrap().restrictionService();
@@ -112,6 +115,7 @@ public final class NeoForgeAuthRuntime {
         UUID playerUuid = player.getUUID();
         this.onlinePlayerRegistry.playerLeft(playerUuid);
         this.frozenPositions.remove(playerUuid);
+        this.restrictionService.clearDenialCooldown(playerUuid);
         this.authService.onPlayerDisconnect(playerUuid);
     }
 
@@ -126,7 +130,7 @@ public final class NeoForgeAuthRuntime {
         }
 
         event.setCanceled(true);
-        player.sendSystemMessage(AuthPromptMessages.restrictionDenied(PlayerActionType.COMMAND));
+        this.sendRestrictionPromptIfNeeded(player, PlayerActionType.COMMAND);
     }
 
     private void onAttackEntity(AttackEntityEvent event) {
@@ -181,15 +185,23 @@ public final class NeoForgeAuthRuntime {
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
             UUID playerUuid = player.getUUID();
             if (this.authService.isLoggedIn(playerUuid)) {
-                this.frozenPositions.put(playerUuid, player.position());
+                this.frozenPositions.remove(playerUuid);
+                this.restrictionService.clearDenialCooldown(playerUuid);
                 continue;
             }
 
             Vec3 frozen = this.frozenPositions.computeIfAbsent(playerUuid, ignored -> player.position());
-            if (player.position().distanceToSqr(frozen) > 0.0001D) {
+            if (player.getDeltaMovement().lengthSqr() > 0.000001D) {
+                player.setDeltaMovement(Vec3.ZERO);
+            }
+
+            if (player.tickCount % FREEZE_CORRECTION_INTERVAL_TICKS != 0) {
+                continue;
+            }
+
+            if (player.position().distanceToSqr(frozen) > FREEZE_TELEPORT_DISTANCE_SQR) {
                 player.connection.teleport(frozen.x, frozen.y, frozen.z, player.getYRot(), player.getXRot());
             }
-            player.setDeltaMovement(Vec3.ZERO);
         }
     }
 
@@ -209,8 +221,14 @@ public final class NeoForgeAuthRuntime {
         if (this.restrictionService.isActionAllowed(serverPlayer.getUUID(), actionType)) {
             return false;
         }
-        serverPlayer.sendSystemMessage(AuthPromptMessages.restrictionDenied(actionType));
+        this.sendRestrictionPromptIfNeeded(serverPlayer, actionType);
         return true;
+    }
+
+    private void sendRestrictionPromptIfNeeded(ServerPlayer player, PlayerActionType actionType) {
+        if (this.restrictionService.shouldSendDenialMessage(player.getUUID(), actionType)) {
+            player.sendSystemMessage(AuthPromptMessages.restrictionDenied(actionType));
+        }
     }
 
     private void onLoginResult(ServerPlayer player, LoginResult result, Throwable throwable) {
@@ -218,6 +236,11 @@ public final class NeoForgeAuthRuntime {
             AuthPlugin.LOGGER.error("Login processing failed for {}", player.getUUID(), throwable);
             player.sendSystemMessage(AuthPromptMessages.internalLoginError());
             return;
+        }
+
+        if (result.type() == LoginResultType.SUCCESS_NEW_BIND || result.type() == LoginResultType.SUCCESS_ALREADY_BOUND) {
+            this.frozenPositions.remove(player.getUUID());
+            this.restrictionService.clearDenialCooldown(player.getUUID());
         }
         player.sendSystemMessage(AuthPromptMessages.loginResult(result));
     }

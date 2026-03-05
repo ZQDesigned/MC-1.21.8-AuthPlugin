@@ -31,7 +31,9 @@ public final class CommandsMixin {
             return;
         }
 
-        player.sendSystemMessage(AuthPromptMessages.restrictionDenied(PlayerActionType.COMMAND));
+        if (restrictionService.shouldSendDenialMessage(player.getUUID(), PlayerActionType.COMMAND)) {
+            player.sendSystemMessage(AuthPromptMessages.restrictionDenied(PlayerActionType.COMMAND));
+        }
         ci.cancel();
     }
 }
