@@ -17,3 +17,4 @@ build/
 fabric/run/
 neoforge/run/
 forge/run/
+common/logs

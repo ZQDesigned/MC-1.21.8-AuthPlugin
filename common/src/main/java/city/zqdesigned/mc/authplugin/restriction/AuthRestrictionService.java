@@ -37,16 +37,6 @@ public final class AuthRestrictionService {
         return normalized.equals("login") || normalized.startsWith("login ");
     }
 
-    public String denialMessage(PlayerActionType actionType) {
-        return switch (actionType) {
-            case MOVE -> "You must login first. Use /login <token>.";
-            case INTERACT -> "You must login before interacting.";
-            case ATTACK -> "You must login before attacking.";
-            case BUILD_OR_BREAK -> "You must login before building or breaking blocks.";
-            case COMMAND -> "Only /login <token> is available before authentication.";
-        };
-    }
-
     public boolean shouldSendDenialMessage(UUID playerUuid, PlayerActionType actionType) {
         long now = System.currentTimeMillis();
         DenialMessageKey key = new DenialMessageKey(playerUuid, actionType);
