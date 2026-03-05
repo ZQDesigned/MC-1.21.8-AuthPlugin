@@ -4,6 +4,7 @@ import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
 import city.zqdesigned.mc.authplugin.config.WebConfig;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
+import city.zqdesigned.mc.authplugin.server.ServerControlService;
 import city.zqdesigned.mc.authplugin.token.TokenInfo;
 import city.zqdesigned.mc.authplugin.token.TokenService;
 import io.javalin.Javalin;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
@@ -41,6 +43,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
     private final AuthService authService;
     private final OnlinePlayerRegistry onlinePlayerRegistry;
     private final PlayerProfileService playerProfileService;
+    private final ServerControlService serverControlService;
     private final WebConfig webConfig;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ConcurrentMap<String, AccessTokenSession> accessTokens = new ConcurrentHashMap<>();
@@ -53,12 +56,14 @@ public final class WebAdminServer implements WebAdminLifecycle {
         AuthService authService,
         OnlinePlayerRegistry onlinePlayerRegistry,
         PlayerProfileService playerProfileService,
+        ServerControlService serverControlService,
         WebConfig webConfig
     ) {
         this.tokenService = tokenService;
         this.authService = authService;
         this.onlinePlayerRegistry = onlinePlayerRegistry;
         this.playerProfileService = playerProfileService;
+        this.serverControlService = serverControlService;
         this.webConfig = webConfig;
     }
 
@@ -77,6 +82,10 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.app.get("/api/auth/session", this::handleSession);
         this.app.get("/api/players", this::handlePlayers);
         this.app.get("/api/tokens", this::handleListTokens);
+        this.app.get("/api/server/status", this::handleServerStatus);
+        this.app.get("/api/server/logs", this::handleServerLogs);
+        this.app.post("/api/server/command", this::handleServerCommand);
+        this.app.post("/api/server/shutdown", this::handleServerShutdown);
         this.app.post("/api/tokens", this::handleAddToken);
         this.app.delete("/api/tokens/{token}", this::handleDeleteToken);
         this.app.patch("/api/tokens/{token}/disable", this::handleDisableToken);
@@ -293,6 +302,96 @@ public final class WebAdminServer implements WebAdminLifecycle {
         ctx.json(Map.of("count", tokens.size(), "tokens", tokens));
     }
 
+    private void handleServerStatus(Context ctx) {
+        ctx.json(this.serverControlService.snapshotStatus());
+    }
+
+    private void handleServerLogs(Context ctx) {
+        int requestedLimit = ServerControlService.DEFAULT_LOG_LIMIT;
+        String limitQuery = ctx.queryParam("limit");
+        if (limitQuery != null) {
+            try {
+                requestedLimit = Integer.parseInt(limitQuery);
+            } catch (NumberFormatException exception) {
+                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "limit must be an integer"));
+                return;
+            }
+        }
+
+        if (requestedLimit < 1 || requestedLimit > ServerControlService.MAX_LOG_LIMIT) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(
+                Map.of("error", "limit must be between 1 and " + ServerControlService.MAX_LOG_LIMIT)
+            );
+            return;
+        }
+
+        List<String> lines = this.serverControlService.readRecentLogs(requestedLimit);
+        ctx.json(Map.of("count", lines.size(), "lines", lines));
+    }
+
+    private void handleServerCommand(Context ctx) {
+        ExecuteServerCommandRequest request;
+        try {
+            request = ctx.bodyAsClass(ExecuteServerCommandRequest.class);
+        } catch (RuntimeException exception) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Invalid command payload"));
+            return;
+        }
+        String command = request.command() == null ? "" : request.command().trim();
+        if (command.isEmpty()) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "command cannot be empty"));
+            return;
+        }
+
+        try {
+            ServerControlService.CommandExecutionResult result = this.serverControlService
+                .executeConsoleCommand(command)
+                .join();
+            ctx.json(Map.of("command", result.command(), "executedAt", result.executedAt()));
+        } catch (CompletionException completionException) {
+            this.handleServerControlException(ctx, completionException.getCause());
+        }
+    }
+
+    private void handleServerShutdown(Context ctx) {
+        RequestServerShutdown request;
+        try {
+            request = ctx.bodyAsClass(RequestServerShutdown.class);
+        } catch (RuntimeException exception) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Invalid shutdown payload"));
+            return;
+        }
+        String message = request.message() == null ? "" : request.message().trim();
+
+        try {
+            ServerControlService.ShutdownRequestResult result = this.serverControlService.requestShutdown(message).join();
+            ctx.json(Map.of(
+                "initiated", result.initiated(),
+                "stopMsgUsed", result.stopMsgUsed(),
+                "message", result.message(),
+                "requestedAt", result.requestedAt()
+            ));
+        } catch (CompletionException completionException) {
+            this.handleServerControlException(ctx, completionException.getCause());
+        }
+    }
+
+    private void handleServerControlException(Context ctx, Throwable cause) {
+        if (cause instanceof IllegalArgumentException illegalArgumentException) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", illegalArgumentException.getMessage()));
+            return;
+        }
+        if (cause instanceof IllegalStateException illegalStateException) {
+            ctx.status(HttpStatus.SERVICE_UNAVAILABLE).json(Map.of("error", illegalStateException.getMessage()));
+            return;
+        }
+
+        if (cause != null) {
+            throw new RuntimeException(cause);
+        }
+        throw new RuntimeException("Unknown server control error");
+    }
+
     private boolean credentialsMatch(String username, String password) {
         return this.secureEquals(this.webConfig.username(), username)
             && this.secureEquals(this.webConfig.password(), password);
@@ -368,6 +467,12 @@ public final class WebAdminServer implements WebAdminLifecycle {
     }
 
     public record GenerateTokenRequest(Integer count) {
+    }
+
+    public record ExecuteServerCommandRequest(String command) {
+    }
+
+    public record RequestServerShutdown(String message) {
     }
 
     public record TokenAdminView(

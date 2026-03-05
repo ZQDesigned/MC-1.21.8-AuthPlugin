@@ -7,6 +7,7 @@ import city.zqdesigned.mc.authplugin.message.AuthPromptMessages;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
 import city.zqdesigned.mc.authplugin.restriction.PlayerActionType;
+import city.zqdesigned.mc.authplugin.server.ServerControlService;
 import city.zqdesigned.mc.authplugin.web.OnlinePlayerRegistry;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import java.util.Map;
@@ -24,6 +25,7 @@ import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -32,6 +34,7 @@ public final class NeoForgeAuthRuntime {
     private final PlayerProfileService playerProfileService = AuthPlugin.bootstrap().playerProfileService();
     private final AuthRestrictionService restrictionService = AuthPlugin.bootstrap().restrictionService();
     private final OnlinePlayerRegistry onlinePlayerRegistry = AuthPlugin.bootstrap().onlinePlayerRegistry();
+    private final ServerControlService serverControlService = AuthPlugin.bootstrap().serverControlService();
     private final Map<UUID, Vec3> frozenPositions = new ConcurrentHashMap<>();
 
     public void register() {
@@ -47,6 +50,7 @@ public final class NeoForgeAuthRuntime {
         NeoForge.EVENT_BUS.addListener(this::onBlockBreak);
         NeoForge.EVENT_BUS.addListener(this::onBlockPlace);
         NeoForge.EVENT_BUS.addListener(this::onServerTick);
+        NeoForge.EVENT_BUS.addListener(this::onServerStarted);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
     }
 
@@ -190,7 +194,12 @@ public final class NeoForgeAuthRuntime {
     }
 
     private void onServerStopping(ServerStoppingEvent event) {
+        this.serverControlService.detachServer(event.getServer());
         AuthPlugin.stop();
+    }
+
+    private void onServerStarted(ServerStartedEvent event) {
+        this.serverControlService.attachServer(event.getServer());
     }
 
     private boolean denyIfRequired(Player player, PlayerActionType actionType) {

@@ -7,6 +7,7 @@ import city.zqdesigned.mc.authplugin.message.AuthPromptMessages;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
 import city.zqdesigned.mc.authplugin.restriction.PlayerActionType;
+import city.zqdesigned.mc.authplugin.server.ServerControlService;
 import city.zqdesigned.mc.authplugin.web.OnlinePlayerRegistry;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import java.util.Map;
@@ -33,6 +34,7 @@ public final class FabricAuthRuntime {
     private final PlayerProfileService playerProfileService = AuthPlugin.bootstrap().playerProfileService();
     private final AuthRestrictionService restrictionService = AuthPlugin.bootstrap().restrictionService();
     private final OnlinePlayerRegistry onlinePlayerRegistry = AuthPlugin.bootstrap().onlinePlayerRegistry();
+    private final ServerControlService serverControlService = AuthPlugin.bootstrap().serverControlService();
     private final Map<UUID, Vec3> frozenPositions = new ConcurrentHashMap<>();
 
     public void register() {
@@ -60,7 +62,11 @@ public final class FabricAuthRuntime {
     }
 
     private void registerLifecycleEvents() {
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> AuthPlugin.stop());
+        ServerLifecycleEvents.SERVER_STARTED.register(this.serverControlService::attachServer);
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            this.serverControlService.detachServer(server);
+            AuthPlugin.stop();
+        });
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayer player = handler.getPlayer();
