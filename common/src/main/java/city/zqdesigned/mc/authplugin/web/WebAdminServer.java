@@ -10,13 +10,23 @@ import city.zqdesigned.mc.authplugin.token.TokenService;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
+import io.javalin.http.sse.SseClient;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.ClosedWatchServiceException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -33,6 +44,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
     private static final Pattern TOKEN_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,128}$");
     private static final String INDEX_PAGE_RESOURCE = "/web/admin-panel-zh.html";
     private static final String LOGIN_API_PATH = "/api/auth/login";
+    private static final String LOG_STREAM_PATH = "/api/server/logs/stream";
     private static final String AUTH_HEADER_PREFIX = "Bearer ";
     private static final String ATTR_ACCESS_TOKEN = "auth.accessToken";
     private static final String ATTR_ACCESS_USER = "auth.accessUser";
@@ -47,8 +59,12 @@ public final class WebAdminServer implements WebAdminLifecycle {
     private final WebConfig webConfig;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ConcurrentMap<String, AccessTokenSession> accessTokens = new ConcurrentHashMap<>();
+    private final Set<SseClient> logStreamClients = new CopyOnWriteArraySet<>();
 
     private Javalin app;
+    private WatchService logWatchService;
+    private Thread logWatchThread;
+    private volatile long logReadCursor = 0L;
     private volatile String indexPageCache;
 
     public WebAdminServer(
@@ -84,6 +100,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.app.get("/api/tokens", this::handleListTokens);
         this.app.get("/api/server/status", this::handleServerStatus);
         this.app.get("/api/server/logs", this::handleServerLogs);
+        this.app.sse(LOG_STREAM_PATH, this::handleServerLogStream);
         this.app.post("/api/server/command", this::handleServerCommand);
         this.app.post("/api/server/shutdown", this::handleServerShutdown);
         this.app.post("/api/tokens", this::handleAddToken);
@@ -99,6 +116,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
         });
 
         this.app.start(this.webConfig.port());
+        this.startLogWatcher();
         AuthPlugin.LOGGER.info(
             "Web admin server started on port {} with access token auth (ttl={} minutes)",
             this.webConfig.port(),
@@ -116,6 +134,8 @@ public final class WebAdminServer implements WebAdminLifecycle {
         try {
             runningApp.stop();
         } finally {
+            this.stopLogWatcher();
+            this.logStreamClients.clear();
             try {
                 runningApp.jettyServer().server().destroy();
             } catch (Exception exception) {
@@ -135,6 +155,12 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.cleanupExpiredSessions(now);
 
         String accessToken = this.extractAccessToken(ctx.header("Authorization"));
+        if (accessToken == null && LOG_STREAM_PATH.equals(ctx.path())) {
+            String queryToken = ctx.queryParam("access_token");
+            if (queryToken != null && !queryToken.isBlank()) {
+                accessToken = queryToken.trim();
+            }
+        }
         if (accessToken == null) {
             this.rejectUnauthorized(ctx);
             return;
@@ -329,6 +355,27 @@ public final class WebAdminServer implements WebAdminLifecycle {
         ctx.json(Map.of("count", lines.size(), "lines", lines));
     }
 
+    private void handleServerLogStream(SseClient client) {
+        int limit = ServerControlService.DEFAULT_LOG_LIMIT;
+        String limitQuery = client.ctx().queryParam("limit");
+        if (limitQuery != null) {
+            try {
+                limit = Integer.parseInt(limitQuery);
+            } catch (NumberFormatException ignored) {
+                limit = ServerControlService.DEFAULT_LOG_LIMIT;
+            }
+        }
+        limit = Math.max(1, Math.min(limit, ServerControlService.MAX_LOG_LIMIT));
+
+        this.logStreamClients.add(client);
+        client.onClose(() -> this.logStreamClients.remove(client));
+
+        List<String> snapshot = this.serverControlService.readRecentLogs(limit);
+        for (String line : snapshot) {
+            this.safeSendEvent(client, "line", line);
+        }
+    }
+
     private void handleServerCommand(Context ctx) {
         ExecuteServerCommandRequest request;
         try {
@@ -390,6 +437,147 @@ public final class WebAdminServer implements WebAdminLifecycle {
             throw new RuntimeException(cause);
         }
         throw new RuntimeException("Unknown server control error");
+    }
+
+    private void startLogWatcher() {
+        Path logFile = this.resolveLatestLogFile();
+        try {
+            Files.createDirectories(logFile.getParent());
+            this.logReadCursor = Files.exists(logFile) ? Files.size(logFile) : 0L;
+            this.logWatchService = logFile.getParent().getFileSystem().newWatchService();
+            logFile.getParent().register(
+                this.logWatchService,
+                StandardWatchEventKinds.ENTRY_CREATE,
+                StandardWatchEventKinds.ENTRY_MODIFY
+            );
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to initialize server log watcher", exception);
+        }
+
+        this.logWatchThread = new Thread(this::watchLogLoop, "authplugin-log-stream");
+        this.logWatchThread.setDaemon(true);
+        this.logWatchThread.start();
+    }
+
+    private void stopLogWatcher() {
+        Thread thread = this.logWatchThread;
+        this.logWatchThread = null;
+        if (thread != null) {
+            thread.interrupt();
+            try {
+                thread.join(1000L);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        WatchService watchService = this.logWatchService;
+        this.logWatchService = null;
+        if (watchService != null) {
+            try {
+                watchService.close();
+            } catch (IOException exception) {
+                AuthPlugin.LOGGER.warn("Failed to close log watch service cleanly", exception);
+            }
+        }
+    }
+
+    private void watchLogLoop() {
+        while (Thread.currentThread() == this.logWatchThread) {
+            WatchService watchService = this.logWatchService;
+            if (watchService == null) {
+                return;
+            }
+
+            WatchKey watchKey;
+            try {
+                watchKey = watchService.take();
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (ClosedWatchServiceException ignored) {
+                return;
+            }
+
+            boolean latestLogUpdated = false;
+            for (WatchEvent<?> event : watchKey.pollEvents()) {
+                WatchEvent.Kind<?> kind = event.kind();
+                if (kind == StandardWatchEventKinds.OVERFLOW) {
+                    continue;
+                }
+                Object context = event.context();
+                if (context instanceof Path changed && "latest.log".equals(changed.getFileName().toString())) {
+                    latestLogUpdated = true;
+                }
+            }
+
+            watchKey.reset();
+            if (latestLogUpdated) {
+                this.broadcastAppendedLogLines();
+            }
+        }
+    }
+
+    private synchronized void broadcastAppendedLogLines() {
+        if (this.logStreamClients.isEmpty()) {
+            return;
+        }
+
+        List<String> appended = this.readAppendedLogLines();
+        if (appended.isEmpty()) {
+            return;
+        }
+
+        for (String line : appended) {
+            for (SseClient client : this.logStreamClients) {
+                this.safeSendEvent(client, "line", line);
+            }
+        }
+    }
+
+    private void safeSendEvent(SseClient client, String event, String data) {
+        try {
+            client.sendEvent(event, data);
+        } catch (Exception ignored) {
+            this.logStreamClients.remove(client);
+            try {
+                client.close();
+            } catch (Exception closeIgnored) {
+                // Ignore close failure, client is already removed.
+            }
+        }
+    }
+
+    private List<String> readAppendedLogLines() {
+        Path logFile = this.resolveLatestLogFile();
+        if (!Files.exists(logFile)) {
+            this.logReadCursor = 0L;
+            return List.of();
+        }
+
+        try (RandomAccessFile file = new RandomAccessFile(logFile.toFile(), "r")) {
+            long length = file.length();
+            if (this.logReadCursor > length) {
+                this.logReadCursor = 0L;
+            }
+            file.seek(this.logReadCursor);
+
+            List<String> lines = new ArrayList<>();
+            String line;
+            while ((line = file.readLine()) != null) {
+                byte[] source = line.getBytes(StandardCharsets.ISO_8859_1);
+                lines.add(new String(source, StandardCharsets.UTF_8));
+            }
+            this.logReadCursor = file.getFilePointer();
+            return lines;
+        } catch (IOException exception) {
+            AuthPlugin.LOGGER.warn("Failed to tail server latest.log", exception);
+            return List.of();
+        }
+    }
+
+    private Path resolveLatestLogFile() {
+        return Path.of("logs", "latest.log");
     }
 
     private boolean credentialsMatch(String username, String password) {

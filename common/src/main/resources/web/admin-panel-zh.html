@@ -619,6 +619,7 @@
     accessToken: '',
     expiresAt: 0,
     pollTimer: null,
+    logEventSource: null,
     refreshInFlight: false,
     generateInFlight: false,
     serverCommandInFlight: false,
@@ -682,6 +683,7 @@
   function clearAuthState() {
     saveAuthState('', 0);
     stopPolling();
+    stopLogStream();
   }
 
   function restoreAuthState() {
@@ -979,11 +981,7 @@
 
     state.refreshInFlight = true;
     try {
-      const tasks = [loadPlayers(), loadTokens(), loadServerStatus()];
-      if (state.currentPage === 'server') {
-        tasks.push(loadServerLogs());
-      }
-      await Promise.all(tasks);
+      await Promise.all([loadPlayers(), loadTokens(), loadServerStatus()]);
       renderAll();
       updateLastRefresh();
       if (showSuccess) {
@@ -1009,6 +1007,39 @@
     state.pollTimer = window.setInterval(() => {
       refreshData(false);
     }, POLL_INTERVAL_MS);
+  }
+
+  function stopLogStream() {
+    if (state.logEventSource) {
+      state.logEventSource.close();
+      state.logEventSource = null;
+    }
+  }
+
+  function startLogStream() {
+    stopLogStream();
+    if (!state.accessToken) {
+      return;
+    }
+
+    const streamUrl = '/api/server/logs/stream?access_token='
+      + encodeURIComponent(state.accessToken)
+      + '&limit=' + encodeURIComponent(String(state.serverLogLimit));
+    const source = new EventSource(streamUrl);
+
+    source.addEventListener('line', event => {
+      state.serverLogs.push(event.data || '');
+      if (state.serverLogs.length > state.serverLogLimit) {
+        state.serverLogs = state.serverLogs.slice(state.serverLogs.length - state.serverLogLimit);
+      }
+      renderServerControl();
+    });
+
+    source.onerror = () => {
+      // EventSource reconnects automatically.
+    };
+
+    state.logEventSource = source;
   }
 
   async function ensureSessionAlive() {
@@ -1046,6 +1077,8 @@
       setGlobalStatus('登录成功。');
       setLoginStatus('');
       await refreshData(false);
+      await refreshServerLogs(false);
+      startLogStream();
       startPolling();
     } catch (error) {
       setLoginStatus(error.message, true);
@@ -1246,6 +1279,7 @@
     document.getElementById('serverLogLimit').addEventListener('change', event => {
       state.serverLogLimit = Number.parseInt(event.target.value, 10) || 200;
       refreshServerLogs(false);
+      startLogStream();
     });
     document.getElementById('serverCommandInput').addEventListener('keydown', event => {
       if (event.key === 'Enter') {
@@ -1340,6 +1374,8 @@
 
     showAppView();
     await refreshData(false);
+    await refreshServerLogs(false);
+    startLogStream();
     startPolling();
   }
 
