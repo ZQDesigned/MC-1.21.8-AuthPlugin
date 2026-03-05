@@ -25,7 +25,10 @@ public final class AuthService {
         String normalizedToken = token == null ? "" : token.trim();
         if (!TOKEN_PATTERN.matcher(normalizedToken).matches()) {
             return CompletableFuture.completedFuture(
-                new LoginResult(LoginResultType.INVALID_TOKEN_FORMAT, "Invalid token format.")
+                new LoginResult(
+                    LoginResultType.INVALID_TOKEN_FORMAT,
+                    "Login failed: invalid token format. Use only letters and numbers, then run /login <token> again."
+                )
             );
         }
 
@@ -71,21 +74,38 @@ public final class AuthService {
                 this.sessionManager.markLoggedIn(playerUuid);
                 if (bindResult.newlyBound()) {
                     AuthPlugin.LOGGER.info("Token {} bound to player {}", token, playerUuid);
-                    yield new LoginResult(LoginResultType.SUCCESS_NEW_BIND, "Login successful. Token is now bound.");
+                    yield new LoginResult(
+                        LoginResultType.SUCCESS_NEW_BIND,
+                        "Login successful. This token is now bound to your account. Rejoin later to use auto-login."
+                    );
                 }
-                yield new LoginResult(LoginResultType.SUCCESS_ALREADY_BOUND, "Login successful.");
+                yield new LoginResult(
+                    LoginResultType.SUCCESS_ALREADY_BOUND,
+                    "Login successful. Authentication is complete."
+                );
             }
             case TOKEN_NOT_FOUND -> {
                 AuthPlugin.LOGGER.info("Login failed for {}: token not found", playerUuid);
-                yield new LoginResult(LoginResultType.TOKEN_NOT_FOUND, "Token does not exist.");
+                yield new LoginResult(
+                    LoginResultType.TOKEN_NOT_FOUND,
+                    "Login failed: token not found. Check the token text and try again. "
+                        + "If you do not have a valid token, contact the server administrator."
+                );
             }
             case TOKEN_DISABLED -> {
                 AuthPlugin.LOGGER.info("Login failed for {}: token disabled", playerUuid);
-                yield new LoginResult(LoginResultType.TOKEN_DISABLED, "Token is disabled.");
+                yield new LoginResult(
+                    LoginResultType.TOKEN_DISABLED,
+                    "Login failed: this token is disabled. Contact the server administrator to enable it or issue a new token."
+                );
             }
             case TOKEN_BOUND_TO_OTHER -> {
                 AuthPlugin.LOGGER.info("Login failed for {}: token bound to another player", playerUuid);
-                yield new LoginResult(LoginResultType.TOKEN_BOUND_TO_OTHER, "Token is bound to another player.");
+                yield new LoginResult(
+                    LoginResultType.TOKEN_BOUND_TO_OTHER,
+                    "Login failed: this token is already bound to another account. "
+                        + "Use your own token, or contact the server administrator to reset the token binding."
+                );
             }
         };
     }
