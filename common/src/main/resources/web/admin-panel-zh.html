@@ -242,6 +242,18 @@
       justify-content: flex-end;
     }
 
+    .title-block {
+      display: grid;
+      gap: 8px;
+    }
+
+    .token-generate-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
     .cards {
       display: grid;
       grid-template-columns: repeat(3, minmax(180px, 1fr));
@@ -428,15 +440,15 @@
 
   <main class="content panel">
     <section class="topbar panel" style="box-shadow: none; margin: 0;">
-      <div>
+      <div class="title-block">
         <h2 id="pageTitle">概览</h2>
-      </div>
-      <div class="title-actions">
-        <div id="tokenTitleGenerate" class="row hidden">
-          <label for="generateCount" class="muted">批量生成</label>
+        <div id="tokenTitleGenerate" class="token-generate-row hidden">
+          <span class="muted">批量生成（1-__MAX_BATCH_COUNT__）</span>
           <input id="generateCount" type="number" min="1" max="__MAX_BATCH_COUNT__" value="10" style="max-width: 140px;" />
           <button id="generateBtn" class="primary">生成</button>
         </div>
+      </div>
+      <div class="title-actions">
         <button id="refreshNowBtn" class="ghost">立即刷新</button>
         <button id="logoutBtn" class="danger">退出登录</button>
       </div>
