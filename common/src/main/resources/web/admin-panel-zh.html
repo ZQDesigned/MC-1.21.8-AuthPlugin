@@ -234,6 +234,14 @@
       padding: 14px;
     }
 
+    .title-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
     .cards {
       display: grid;
       grid-template-columns: repeat(3, minmax(180px, 1fr));
@@ -423,7 +431,12 @@
       <div>
         <h2 id="pageTitle">概览</h2>
       </div>
-      <div class="row">
+      <div class="title-actions">
+        <div id="tokenTitleGenerate" class="row hidden">
+          <label for="generateCount" class="muted">批量生成</label>
+          <input id="generateCount" type="number" min="1" max="__MAX_BATCH_COUNT__" value="10" style="max-width: 140px;" />
+          <button id="generateBtn" class="primary">生成</button>
+        </div>
         <button id="refreshNowBtn" class="ghost">立即刷新</button>
         <button id="logoutBtn" class="danger">退出登录</button>
       </div>
@@ -476,11 +489,6 @@
         <div class="row" style="gap: 10px;">
           <strong>Token 列表</strong>
           <span id="tokensCount" class="muted">共 0 条</span>
-        </div>
-        <div class="row">
-          <label for="generateCount" class="muted">批量生成</label>
-          <input id="generateCount" type="number" min="1" max="__MAX_BATCH_COUNT__" value="10" style="max-width: 140px;" />
-          <button id="generateBtn" class="primary">生成</button>
         </div>
       </div>
       <div id="generatedTokens" class="chips"></div>
@@ -918,6 +926,7 @@
     };
 
     document.getElementById('pageTitle').textContent = pageTitles[page] || pageTitles.overview;
+    document.getElementById('tokenTitleGenerate').classList.toggle('hidden', page !== 'tokens');
 
     document.querySelectorAll('.menu-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.page === page);
