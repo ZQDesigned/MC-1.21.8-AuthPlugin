@@ -32,11 +32,13 @@ dependencies {
     modImplementation "dev.architectury:architectury-fabric:$rootProject.architectury_api_version"
     runtimeOnly "com.h2database:h2:$rootProject.h2_version"
     runtimeOnly "io.javalin:javalin:$rootProject.javalin_version"
+    runtimeOnly "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
     shadowBundle "com.h2database:h2:$rootProject.h2_version"
     shadowBundle "io.javalin:javalin:$rootProject.javalin_version"
+    shadowBundle "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 }
 
 processResources {

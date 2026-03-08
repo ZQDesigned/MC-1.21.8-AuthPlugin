@@ -130,7 +130,7 @@ public final class ServerControlService {
     private Path resolveLatestLogPath() {
         MinecraftServer server = this.serverRef.get();
         if (server != null) {
-            return server.getFile("logs/latest.log");
+            return server.getFile("logs/latest.log").toPath();
         }
         return Path.of("logs", "latest.log");
     }

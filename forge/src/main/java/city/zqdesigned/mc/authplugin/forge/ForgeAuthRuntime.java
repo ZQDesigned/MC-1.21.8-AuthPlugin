@@ -1,4 +1,4 @@
-package city.zqdesigned.mc.authplugin.neoforge;
+package city.zqdesigned.mc.authplugin.forge;
 
 import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
@@ -19,18 +19,18 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.CommandEvent;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.CommandEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 
-public final class NeoForgeAuthRuntime {
+public final class ForgeAuthRuntime {
     private static final int FREEZE_CORRECTION_INTERVAL_TICKS = 5;
     private static final double FREEZE_TELEPORT_DISTANCE_SQR = 0.09D;
     private final AuthService authService = AuthPlugin.bootstrap().authService();
@@ -41,20 +41,20 @@ public final class NeoForgeAuthRuntime {
     private final Map<UUID, Vec3> frozenPositions = new ConcurrentHashMap<>();
 
     public void register() {
-        NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
-        NeoForge.EVENT_BUS.addListener(this::onPlayerLogin);
-        NeoForge.EVENT_BUS.addListener(this::onPlayerLogout);
-        NeoForge.EVENT_BUS.addListener(this::onCommand);
-        NeoForge.EVENT_BUS.addListener(this::onAttackEntity);
-        NeoForge.EVENT_BUS.addListener(this::onRightClickBlock);
-        NeoForge.EVENT_BUS.addListener(this::onRightClickItem);
-        NeoForge.EVENT_BUS.addListener(this::onEntityInteract);
-        NeoForge.EVENT_BUS.addListener(this::onLeftClickBlock);
-        NeoForge.EVENT_BUS.addListener(this::onBlockBreak);
-        NeoForge.EVENT_BUS.addListener(this::onBlockPlace);
-        NeoForge.EVENT_BUS.addListener(this::onServerTick);
-        NeoForge.EVENT_BUS.addListener(this::onServerStarted);
-        NeoForge.EVENT_BUS.addListener(this::onServerStopping);
+        MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
+        MinecraftForge.EVENT_BUS.addListener(this::onPlayerLogin);
+        MinecraftForge.EVENT_BUS.addListener(this::onPlayerLogout);
+        MinecraftForge.EVENT_BUS.addListener(this::onCommand);
+        MinecraftForge.EVENT_BUS.addListener(this::onAttackEntity);
+        MinecraftForge.EVENT_BUS.addListener(this::onRightClickBlock);
+        MinecraftForge.EVENT_BUS.addListener(this::onRightClickItem);
+        MinecraftForge.EVENT_BUS.addListener(this::onEntityInteract);
+        MinecraftForge.EVENT_BUS.addListener(this::onLeftClickBlock);
+        MinecraftForge.EVENT_BUS.addListener(this::onBlockBreak);
+        MinecraftForge.EVENT_BUS.addListener(this::onBlockPlace);
+        MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
+        MinecraftForge.EVENT_BUS.addListener(this::onServerStarted);
+        MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
@@ -181,7 +181,10 @@ public final class NeoForgeAuthRuntime {
         }
     }
 
-    private void onServerTick(ServerTickEvent.Post event) {
+    private void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
             UUID playerUuid = player.getUUID();
             if (this.authService.isLoggedIn(playerUuid)) {

@@ -11,16 +11,20 @@ import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Commands.class)
 public final class CommandsMixin {
     @Inject(
-        method = "performCommand(Lcom/mojang/brigadier/ParseResults;Ljava/lang/String;)V",
+        method = "performCommand(Lcom/mojang/brigadier/ParseResults;Ljava/lang/String;)I",
         at = @At("HEAD"),
         cancellable = true
     )
-    private void authplugin$restrictCommands(ParseResults<CommandSourceStack> parseResults, String rawCommand, CallbackInfo ci) {
+    private void authplugin$restrictCommands(
+        ParseResults<CommandSourceStack> parseResults,
+        String rawCommand,
+        CallbackInfoReturnable<Integer> cir
+    ) {
         CommandSourceStack source = parseResults.getContext().getSource();
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             return;
@@ -34,6 +38,6 @@ public final class CommandsMixin {
         if (restrictionService.shouldSendDenialMessage(player.getUUID(), PlayerActionType.COMMAND)) {
             player.sendSystemMessage(AuthPromptMessages.restrictionDenied(PlayerActionType.COMMAND));
         }
-        ci.cancel();
+        cir.setReturnValue(0);
     }
 }

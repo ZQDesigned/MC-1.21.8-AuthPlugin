@@ -1,6 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[2,)"
-#issueTrackerURL = ""
+loaderVersion = "[47,)"
 license = "Apache 2.0"
 
 [[mods]]
@@ -11,26 +10,25 @@ authors = ""
 description = '''
 
 '''
-#logoFile = ""
 
 [[dependencies.authplugin]]
-modId = "neoforge"
-type = "required"
-versionRange = "[21,)"
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.authplugin]]
 modId = "minecraft"
-type = "required"
-versionRange = "[1.21.8,)"
+mandatory = true
+versionRange = "[1.20.1,1.21)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.authplugin]]
 modId = "architectury"
-type = "required"
-versionRange = "[17.0.8,)"
+mandatory = true
+versionRange = "[9.2.14,)"
 ordering = "AFTER"
 side = "BOTH"
 

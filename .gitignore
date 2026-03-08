@@ -15,6 +15,5 @@ build/
 
 # Dev runtime directories
 fabric/run/
-neoforge/run/
 forge/run/
 common/logs

@@ -26,8 +26,11 @@ import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 public final class FabricAuthRuntime {
@@ -135,7 +138,7 @@ public final class FabricAuthRuntime {
 
     private void registerRestrictionEvents() {
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> this.allowOrFail(player, PlayerActionType.INTERACT));
-        UseItemCallback.EVENT.register((player, world, hand) -> this.allowOrFail(player, PlayerActionType.INTERACT));
+        UseItemCallback.EVENT.register((player, world, hand) -> this.allowOrFailItemUse(player, hand));
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> this.allowOrFail(player, PlayerActionType.INTERACT));
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> this.allowOrFail(player, PlayerActionType.ATTACK));
         AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> this.allowOrFail(player, PlayerActionType.BUILD_OR_BREAK));
@@ -161,6 +164,18 @@ public final class FabricAuthRuntime {
         }
         this.sendRestrictionPromptIfNeeded(serverPlayer, actionType);
         return InteractionResult.FAIL;
+    }
+
+    private InteractionResultHolder<ItemStack> allowOrFailItemUse(Player player, InteractionHand hand) {
+        ItemStack heldItem = player.getItemInHand(hand);
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return InteractionResultHolder.pass(heldItem);
+        }
+        if (this.restrictionService.isActionAllowed(serverPlayer.getUUID(), PlayerActionType.INTERACT)) {
+            return InteractionResultHolder.pass(heldItem);
+        }
+        this.sendRestrictionPromptIfNeeded(serverPlayer, PlayerActionType.INTERACT);
+        return InteractionResultHolder.fail(heldItem);
     }
 
     private void sendRestrictionPromptIfNeeded(ServerPlayer player, PlayerActionType actionType) {

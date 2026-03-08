@@ -11,6 +11,7 @@ dependencies {
     modImplementation "dev.architectury:architectury:$rootProject.architectury_api_version"
     implementation "com.h2database:h2:$rootProject.h2_version"
     implementation "io.javalin:javalin:$rootProject.javalin_version"
+    implementation "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 
     testImplementation platform("org.junit:junit-bom:$rootProject.junit_version")
     testImplementation "org.junit.jupiter:junit-jupiter"

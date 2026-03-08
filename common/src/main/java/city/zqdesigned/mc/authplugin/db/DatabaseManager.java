@@ -177,7 +177,7 @@ public final class DatabaseManager {
         loaders.add(ClassLoader.getSystemClassLoader());
 
         String[] probeClasses = {
-            "city.zqdesigned.mc.authplugin.neoforge.AuthPluginNeoForge",
+            "city.zqdesigned.mc.authplugin.forge.AuthPluginForge",
             "city.zqdesigned.mc.authplugin.fabric.AuthPluginFabric",
             "city.zqdesigned.mc.authplugin.AuthPlugin"
         };
