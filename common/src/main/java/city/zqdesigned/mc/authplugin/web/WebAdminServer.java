@@ -2,6 +2,7 @@ package city.zqdesigned.mc.authplugin.web;
 
 import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
+import city.zqdesigned.mc.authplugin.bot.BotApiKeyService;
 import city.zqdesigned.mc.authplugin.config.WebConfig;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.server.ServerControlService;
@@ -44,6 +45,9 @@ public final class WebAdminServer implements WebAdminLifecycle {
     private static final Pattern TOKEN_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,128}$");
     private static final String INDEX_PAGE_RESOURCE = "/web/admin-panel-zh.html";
     private static final String LOGIN_API_PATH = "/api/auth/login";
+    private static final String BOT_API_PREFIX = "/api/bot/";
+    private static final String BOT_API_KEY_HEADER = "X-API-Key";
+    private static final String BOT_API_KEY_QUERY = "api_key";
     private static final String LOG_STREAM_PATH = "/api/server/logs/stream";
     private static final String AUTH_HEADER_PREFIX = "Bearer ";
     private static final String ATTR_ACCESS_TOKEN = "auth.accessToken";
@@ -56,6 +60,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
     private final OnlinePlayerRegistry onlinePlayerRegistry;
     private final PlayerProfileService playerProfileService;
     private final ServerControlService serverControlService;
+    private final BotApiKeyService botApiKeyService;
     private final WebConfig webConfig;
     private final SecureRandom secureRandom = new SecureRandom();
     private final ConcurrentMap<String, AccessTokenSession> accessTokens = new ConcurrentHashMap<>();
@@ -73,6 +78,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
         OnlinePlayerRegistry onlinePlayerRegistry,
         PlayerProfileService playerProfileService,
         ServerControlService serverControlService,
+        BotApiKeyService botApiKeyService,
         WebConfig webConfig
     ) {
         this.tokenService = tokenService;
@@ -80,6 +86,7 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.onlinePlayerRegistry = onlinePlayerRegistry;
         this.playerProfileService = playerProfileService;
         this.serverControlService = serverControlService;
+        this.botApiKeyService = botApiKeyService;
         this.webConfig = webConfig;
     }
 
@@ -92,10 +99,13 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.app = Javalin.create(config -> config.showJavalinBanner = false);
 
         this.app.before("/api/*", this::requireAccessToken);
+        this.app.before("/api/bot/*", this::requireBotApiKey);
         this.app.get("/", ctx -> ctx.contentType("text/html; charset=utf-8").result(this.indexPage()));
         this.app.post(LOGIN_API_PATH, this::handleLogin);
         this.app.post("/api/auth/logout", this::handleLogout);
         this.app.get("/api/auth/session", this::handleSession);
+        this.app.get("/api/bot/players", this::handleBotPlayers);
+        this.app.post("/api/bot/tokens", this::handleBotCreateToken);
         this.app.get("/api/players", this::handlePlayers);
         this.app.get("/api/tokens", this::handleListTokens);
         this.app.get("/api/server/status", this::handleServerStatus);
@@ -147,6 +157,9 @@ public final class WebAdminServer implements WebAdminLifecycle {
     }
 
     private void requireAccessToken(Context ctx) {
+        if (ctx.path().startsWith(BOT_API_PREFIX)) {
+            return;
+        }
         if (LOGIN_API_PATH.equals(ctx.path())) {
             return;
         }
@@ -176,6 +189,19 @@ public final class WebAdminServer implements WebAdminLifecycle {
         ctx.attribute(ATTR_ACCESS_TOKEN, accessToken);
         ctx.attribute(ATTR_ACCESS_USER, session.username());
         ctx.attribute(ATTR_ACCESS_EXPIRES_AT, session.expiresAtMillis());
+    }
+
+    private void requireBotApiKey(Context ctx) {
+        String apiKey = ctx.header(BOT_API_KEY_HEADER);
+        if (apiKey == null || apiKey.isBlank()) {
+            apiKey = ctx.queryParam(BOT_API_KEY_QUERY);
+        }
+
+        String resolved = apiKey == null ? "" : apiKey.trim();
+        boolean allowed = this.botApiKeyService.authenticate(resolved).join();
+        if (!allowed) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("error", "Invalid API key"));
+        }
     }
 
     private void handleLogin(Context ctx) {
@@ -225,6 +251,27 @@ public final class WebAdminServer implements WebAdminLifecycle {
             "expiresAt", expiresAt,
             "expiresIn", Math.max(0L, (expiresAt - System.currentTimeMillis()) / 1000L)
         ));
+    }
+
+    private void handleBotPlayers(Context ctx) {
+        List<String> players = this.onlinePlayerRegistry.snapshot().entrySet().stream()
+            .sorted(Map.Entry.comparingByValue(String::compareToIgnoreCase))
+            .map(entry -> {
+                boolean loggedIn = this.authService.isLoggedIn(entry.getKey());
+                String loginState = loggedIn ? "已登录" : "未登录";
+                return entry.getValue() + "（" + loginState + "）";
+            })
+            .toList();
+        ctx.json(Map.of("count", players.size(), "players", players));
+    }
+
+    private void handleBotCreateToken(Context ctx) {
+        List<String> created = this.tokenService.generateAndStoreTokens(1).join();
+        String token = created.isEmpty() ? "" : created.get(0);
+        if (token.isEmpty()) {
+            throw new IllegalStateException("Failed to create token");
+        }
+        ctx.status(HttpStatus.CREATED).json(Map.of("token", token));
     }
 
     private void handlePlayers(Context ctx) {

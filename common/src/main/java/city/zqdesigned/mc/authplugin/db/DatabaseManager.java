@@ -40,6 +40,15 @@ public final class DatabaseManager {
             last_seen_at BIGINT NOT NULL
         )
         """;
+    private static final String CREATE_API_KEYS_TABLE_SQL = """
+        CREATE TABLE IF NOT EXISTS api_keys (
+            name VARCHAR PRIMARY KEY,
+            api_key VARCHAR UNIQUE NOT NULL,
+            disabled BOOLEAN DEFAULT FALSE,
+            created_at BIGINT NOT NULL,
+            last_used_at BIGINT NOT NULL
+        )
+        """;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ExecutorService executorService = Executors.newFixedThreadPool(2, new DbThreadFactory());
     private final Path databaseDirectory;
@@ -139,6 +148,7 @@ public final class DatabaseManager {
              Statement statement = connection.createStatement()) {
             statement.execute(CREATE_TOKENS_TABLE_SQL);
             statement.execute(CREATE_PLAYER_PROFILES_TABLE_SQL);
+            statement.execute(CREATE_API_KEYS_TABLE_SQL);
         }
     }
 
@@ -221,6 +231,7 @@ public final class DatabaseManager {
         try (Statement statement = connection.createStatement()) {
             statement.execute(CREATE_TOKENS_TABLE_SQL);
             statement.execute(CREATE_PLAYER_PROFILES_TABLE_SQL);
+            statement.execute(CREATE_API_KEYS_TABLE_SQL);
         }
     }
 

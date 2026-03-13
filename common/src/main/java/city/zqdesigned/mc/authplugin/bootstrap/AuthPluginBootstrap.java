@@ -2,6 +2,8 @@ package city.zqdesigned.mc.authplugin.bootstrap;
 
 import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
+import city.zqdesigned.mc.authplugin.bot.BotApiKeyDao;
+import city.zqdesigned.mc.authplugin.bot.BotApiKeyService;
 import city.zqdesigned.mc.authplugin.config.AuthPluginConfig;
 import city.zqdesigned.mc.authplugin.config.ConfigManager;
 import city.zqdesigned.mc.authplugin.db.DatabaseManager;
@@ -24,8 +26,10 @@ public final class AuthPluginBootstrap {
     private final DatabaseManager databaseManager = new DatabaseManager();
     private final TokenDao tokenDao = new TokenDao(this.databaseManager);
     private final PlayerProfileDao playerProfileDao = new PlayerProfileDao(this.databaseManager);
+    private final BotApiKeyDao botApiKeyDao = new BotApiKeyDao(this.databaseManager);
     private final TokenService tokenService = new TokenService(this.tokenDao);
     private final PlayerProfileService playerProfileService = new PlayerProfileService(this.playerProfileDao);
+    private final BotApiKeyService botApiKeyService = new BotApiKeyService(this.botApiKeyDao);
     private final SessionManager sessionManager = new SessionManager();
     private final AuthService authService = new AuthService(this.tokenService, this.sessionManager);
     private final AuthRestrictionService restrictionService = new AuthRestrictionService(this.authService);
@@ -48,6 +52,7 @@ public final class AuthPluginBootstrap {
                 this.onlinePlayerRegistry,
                 this.playerProfileService,
                 this.serverControlService,
+                this.botApiKeyService,
                 this.config.web()
             );
             this.webAdminServer.start();
@@ -104,5 +109,9 @@ public final class AuthPluginBootstrap {
 
     public ServerControlService serverControlService() {
         return this.serverControlService;
+    }
+
+    public BotApiKeyService botApiKeyService() {
+        return this.botApiKeyService;
     }
 }
