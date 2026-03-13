@@ -35,17 +35,29 @@ dependencies {
     forge "net.minecraftforge:forge:$rootProject.forge_version"
 
     modImplementation "dev.architectury:architectury-forge:$rootProject.architectury_api_version"
-    compileOnly "io.javalin:javalin:$rootProject.javalin_version"
+    compileOnly("io.javalin:javalin:$rootProject.javalin_version") {
+        exclude group: "org.jetbrains.kotlin"
+        exclude group: "org.jetbrains.kotlinx"
+    }
     runtimeOnly "com.h2database:h2:$rootProject.h2_version"
-    runtimeOnly "io.javalin:javalin:$rootProject.javalin_version"
+    runtimeOnly("io.javalin:javalin:$rootProject.javalin_version") {
+        exclude group: "org.jetbrains.kotlin"
+        exclude group: "org.jetbrains.kotlinx"
+    }
     runtimeOnly "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
-    forgeRuntimeLibrary "io.javalin:javalin:$rootProject.javalin_version"
+    forgeRuntimeLibrary("io.javalin:javalin:$rootProject.javalin_version") {
+        exclude group: "org.jetbrains.kotlin"
+        exclude group: "org.jetbrains.kotlinx"
+    }
     forgeRuntimeLibrary "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionForge')
     shadowBundle "com.h2database:h2:$rootProject.h2_version"
-    shadowBundle "io.javalin:javalin:$rootProject.javalin_version"
+    shadowBundle("io.javalin:javalin:$rootProject.javalin_version") {
+        exclude group: "org.jetbrains.kotlin"
+        exclude group: "org.jetbrains.kotlinx"
+    }
     shadowBundle "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 }
 
@@ -60,6 +72,9 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    exclude 'kotlin/**'
+    exclude 'kotlinx/**'
+    exclude 'META-INF/*.kotlin_module'
     relocate 'org.h2', 'city.zqdesigned.mc.authplugin.shadow.org.h2'
     relocate 'io.javalin', 'city.zqdesigned.mc.authplugin.shadow.io.javalin'
     relocate 'org.eclipse.jetty', 'city.zqdesigned.mc.authplugin.shadow.org.eclipse.jetty'
