@@ -4,7 +4,6 @@ import city.zqdesigned.mc.authplugin.AuthPlugin;
 import city.zqdesigned.mc.authplugin.auth.AuthService;
 import city.zqdesigned.mc.authplugin.auth.LoginResult;
 import city.zqdesigned.mc.authplugin.auth.LoginResultType;
-import city.zqdesigned.mc.authplugin.bot.BotApiKeyCommands;
 import city.zqdesigned.mc.authplugin.message.AuthPromptMessages;
 import city.zqdesigned.mc.authplugin.profile.PlayerProfileService;
 import city.zqdesigned.mc.authplugin.restriction.AuthRestrictionService;
@@ -39,7 +38,6 @@ public final class ForgeAuthRuntime {
     private final AuthRestrictionService restrictionService = AuthPlugin.bootstrap().restrictionService();
     private final OnlinePlayerRegistry onlinePlayerRegistry = AuthPlugin.bootstrap().onlinePlayerRegistry();
     private final ServerControlService serverControlService = AuthPlugin.bootstrap().serverControlService();
-    private final BotApiKeyCommands botApiKeyCommands = new BotApiKeyCommands();
     private final Map<UUID, Vec3> frozenPositions = new ConcurrentHashMap<>();
 
     public void register() {
@@ -73,7 +71,6 @@ public final class ForgeAuthRuntime {
                     })
                 )
         );
-        this.botApiKeyCommands.register(event.getDispatcher());
     }
 
     private void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {

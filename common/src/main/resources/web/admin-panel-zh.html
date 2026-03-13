@@ -447,6 +447,7 @@
     <button class="menu-btn active" data-page="overview">概览</button>
     <button class="menu-btn" data-page="players">在线玩家</button>
     <button class="menu-btn" data-page="tokens">Token 管理</button>
+    <button class="menu-btn" data-page="botapi">Bot API</button>
     <button class="menu-btn" data-page="server">服务器控制</button>
 
     <div class="sidebar-meta">
@@ -540,6 +541,25 @@
       </div>
     </section>
 
+    <section id="page-botapi" class="page hidden">
+      <div class="inline-panel">
+        <div class="row" style="justify-content: space-between;">
+          <strong>创建 API Key</strong>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <input id="apiKeyNameInput" type="text" placeholder="输入名称，例如 qqbot-main" style="min-width: 280px; flex: 1;" />
+          <button id="createApiKeyBtn" class="primary">创建</button>
+        </div>
+        <div id="createdApiKeyText" class="mono" style="margin-top: 8px;"></div>
+      </div>
+
+      <div class="row" style="justify-content: space-between; margin-top: 10px;">
+        <strong>API Key 列表</strong>
+        <span id="apiKeysCount" class="muted">共 0 条</span>
+      </div>
+      <div class="table-wrap" id="apiKeysWrap"></div>
+    </section>
+
     <section id="page-server" class="page hidden">
       <div class="cards">
         <div class="card">
@@ -608,6 +628,7 @@
     currentPage: 'overview',
     players: [],
     tokens: [],
+    apiKeys: [],
     serverStatus: null,
     serverLogs: [],
     serverLogLimit: 200,
@@ -622,6 +643,7 @@
     logEventSource: null,
     refreshInFlight: false,
     generateInFlight: false,
+    apiKeyCreateInFlight: false,
     serverCommandInFlight: false,
     shutdownInFlight: false
   };
@@ -896,6 +918,46 @@
       + '</table>';
   }
 
+  function renderApiKeys() {
+    const apiKeysCountEl = document.getElementById('apiKeysCount');
+    const apiKeysWrapEl = document.getElementById('apiKeysWrap');
+    apiKeysCountEl.textContent = '共 ' + state.apiKeys.length + ' 条';
+
+    if (!state.apiKeys.length) {
+      apiKeysWrapEl.innerHTML = '<p class="empty">当前没有 API Key。</p>';
+      return;
+    }
+
+    const rows = state.apiKeys.map(item => {
+      const statusTag = item.disabled
+        ? '<span class="tag disabled">已禁用</span>'
+        : '<span class="tag active">可用</span>';
+      const toggleAction = item.disabled ? 'enable' : 'disable';
+      const toggleLabel = item.disabled ? '启用' : '禁用';
+      const encodedName = encodeURIComponent(item.name);
+
+      return '<tr>'
+        + '<td>' + escapeHtml(item.name || '-') + '</td>'
+        + '<td><span class="mono">' + escapeHtml(item.maskedApiKey || '-') + '</span></td>'
+        + '<td>' + statusTag + '</td>'
+        + '<td>' + escapeHtml(formatTime(item.createdAt)) + '</td>'
+        + '<td>' + escapeHtml(formatTime(item.lastUsedAt)) + '</td>'
+        + '<td>'
+        + '<div class="actions">'
+        + '<button class="ghost" data-action="' + toggleAction + '" data-name="' + encodedName + '">' + toggleLabel + '</button>'
+        + '</div>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+
+    apiKeysWrapEl.innerHTML = '<table>'
+      + '<thead><tr>'
+      + '<th>名称</th><th>Key</th><th>状态</th><th>创建时间</th><th>最近使用</th><th>操作</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table>';
+  }
+
   function formatDuration(durationMillis) {
     if (!durationMillis || durationMillis < 0) {
       return '-';
@@ -948,6 +1010,7 @@
     renderOverview();
     renderPlayers();
     renderTokens();
+    renderApiKeys();
     renderServerControl();
   }
 
@@ -959,6 +1022,11 @@
   async function loadTokens() {
     const data = await apiRequest('/api/tokens');
     state.tokens = Array.isArray(data.tokens) ? data.tokens : [];
+  }
+
+  async function loadApiKeys() {
+    const data = await apiRequest('/api/apikeys');
+    state.apiKeys = Array.isArray(data.apiKeys) ? data.apiKeys : [];
   }
 
   async function loadServerStatus() {
@@ -981,7 +1049,7 @@
 
     state.refreshInFlight = true;
     try {
-      await Promise.all([loadPlayers(), loadTokens(), loadServerStatus()]);
+      await Promise.all([loadPlayers(), loadTokens(), loadApiKeys(), loadServerStatus()]);
       renderAll();
       updateLastRefresh();
       if (showSuccess) {
@@ -1105,6 +1173,7 @@
       overview: '概览',
       players: '在线玩家',
       tokens: 'Token 管理',
+      botapi: 'Bot API',
       server: '服务器控制'
     };
 
@@ -1149,6 +1218,60 @@
     } finally {
       state.generateInFlight = false;
       generateBtn.disabled = false;
+    }
+  }
+
+  async function handleCreateApiKey() {
+    if (state.apiKeyCreateInFlight) {
+      return;
+    }
+
+    const inputEl = document.getElementById('apiKeyNameInput');
+    const name = inputEl.value.trim();
+    if (!name) {
+      setGlobalStatus('请输入 API Key 名称。', true);
+      return;
+    }
+
+    const createBtn = document.getElementById('createApiKeyBtn');
+    const createdTextEl = document.getElementById('createdApiKeyText');
+    state.apiKeyCreateInFlight = true;
+    createBtn.disabled = true;
+
+    try {
+      const data = await apiRequest('/api/apikeys', {
+        method: 'POST',
+        body: JSON.stringify({ name })
+      });
+      createdTextEl.textContent = '新建成功，请立即保存：' + (data.apiKey || '-');
+      inputEl.value = '';
+      setGlobalStatus('API Key 已创建。');
+      await refreshData(false);
+    } catch (error) {
+      setGlobalStatus(error.message, true);
+    } finally {
+      state.apiKeyCreateInFlight = false;
+      createBtn.disabled = false;
+    }
+  }
+
+  async function disableApiKey(name) {
+    try {
+      await apiRequest('/api/apikeys/' + encodeURIComponent(name) + '/disable', { method: 'PATCH' });
+      setGlobalStatus('API Key 已禁用。');
+      await refreshData(false);
+    } catch (error) {
+      setGlobalStatus(error.message, true);
+    }
+  }
+
+  async function enableApiKey(name) {
+    try {
+      await apiRequest('/api/apikeys/' + encodeURIComponent(name) + '/enable', { method: 'PATCH' });
+      setGlobalStatus('API Key 已启用。');
+      await refreshData(false);
+    } catch (error) {
+      setGlobalStatus(error.message, true);
     }
   }
 
@@ -1273,6 +1396,7 @@
     document.getElementById('logoutBtn').addEventListener('click', handleLogout);
     document.getElementById('refreshNowBtn').addEventListener('click', () => refreshData(true));
     document.getElementById('generateBtn').addEventListener('click', handleGenerateTokens);
+    document.getElementById('createApiKeyBtn').addEventListener('click', handleCreateApiKey);
     document.getElementById('serverCommandBtn').addEventListener('click', handleExecuteServerCommand);
     document.getElementById('shutdownBtn').addEventListener('click', handleShutdownServer);
     document.getElementById('refreshLogsBtn').addEventListener('click', () => refreshServerLogs(true));
@@ -1349,6 +1473,32 @@
         }
         if (action === 'delete') {
           await deleteToken(token);
+        }
+      } finally {
+        target.disabled = false;
+      }
+    });
+
+    document.getElementById('apiKeysWrap').addEventListener('click', async event => {
+      const target = event.target;
+      if (!(target instanceof HTMLButtonElement)) {
+        return;
+      }
+      const action = target.dataset.action;
+      const encodedName = target.dataset.name;
+      if (!action || !encodedName) {
+        return;
+      }
+
+      const name = decodeURIComponent(encodedName);
+      target.disabled = true;
+      try {
+        if (action === 'disable') {
+          await disableApiKey(name);
+          return;
+        }
+        if (action === 'enable') {
+          await enableApiKey(name);
         }
       } finally {
         target.disabled = false;

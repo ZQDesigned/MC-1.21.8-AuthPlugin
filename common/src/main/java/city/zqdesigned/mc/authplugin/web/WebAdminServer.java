@@ -104,6 +104,10 @@ public final class WebAdminServer implements WebAdminLifecycle {
         this.app.post(LOGIN_API_PATH, this::handleLogin);
         this.app.post("/api/auth/logout", this::handleLogout);
         this.app.get("/api/auth/session", this::handleSession);
+        this.app.get("/api/apikeys", this::handleListApiKeys);
+        this.app.post("/api/apikeys", this::handleCreateApiKey);
+        this.app.patch("/api/apikeys/{name}/disable", this::handleDisableApiKey);
+        this.app.patch("/api/apikeys/{name}/enable", this::handleEnableApiKey);
         this.app.get("/api/bot/players", this::handleBotPlayers);
         this.app.post("/api/bot/tokens", this::handleBotCreateToken);
         this.app.get("/api/players", this::handlePlayers);
@@ -251,6 +255,56 @@ public final class WebAdminServer implements WebAdminLifecycle {
             "expiresAt", expiresAt,
             "expiresIn", Math.max(0L, (expiresAt - System.currentTimeMillis()) / 1000L)
         ));
+    }
+
+    private void handleListApiKeys(Context ctx) {
+        ctx.json(Map.of("apiKeys", this.botApiKeyService.listApiKeys().join()));
+    }
+
+    private void handleCreateApiKey(Context ctx) {
+        CreateApiKeyRequest request;
+        try {
+            request = ctx.bodyAsClass(CreateApiKeyRequest.class);
+        } catch (RuntimeException exception) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Invalid API key payload"));
+            return;
+        }
+
+        String name = request.name() == null ? "" : request.name().trim();
+        try {
+            BotApiKeyService.CreateApiKeyResult result = this.botApiKeyService.createApiKey(name).join();
+            ctx.status(HttpStatus.CREATED).json(Map.of(
+                "name", result.name(),
+                "apiKey", result.apiKey(),
+                "createdAt", result.createdAt()
+            ));
+        } catch (CompletionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof IllegalArgumentException || cause instanceof IllegalStateException) {
+                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", cause.getMessage()));
+                return;
+            }
+            throw exception;
+        }
+    }
+
+    private void handleDisableApiKey(Context ctx) {
+        this.handleToggleApiKey(ctx, true);
+    }
+
+    private void handleEnableApiKey(Context ctx) {
+        this.handleToggleApiKey(ctx, false);
+    }
+
+    private void handleToggleApiKey(Context ctx, boolean disable) {
+        String name = ctx.pathParam("name");
+        boolean changed = (disable ? this.botApiKeyService.disableApiKey(name) : this.botApiKeyService.enableApiKey(name))
+            .join();
+        if (!changed) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "API key name not found"));
+            return;
+        }
+        ctx.json(Map.of("name", name, "disabled", disable));
     }
 
     private void handleBotPlayers(Context ctx) {
@@ -702,6 +756,9 @@ public final class WebAdminServer implements WebAdminLifecycle {
     }
 
     public record GenerateTokenRequest(Integer count) {
+    }
+
+    public record CreateApiKeyRequest(String name) {
     }
 
     public record ExecuteServerCommandRequest(String command) {
