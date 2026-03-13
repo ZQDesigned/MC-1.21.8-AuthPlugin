@@ -38,16 +38,19 @@ dependencies {
     compileOnly("io.javalin:javalin:$rootProject.javalin_version") {
         exclude group: "org.jetbrains.kotlin"
         exclude group: "org.jetbrains.kotlinx"
+        exclude group: "org.slf4j"
     }
     runtimeOnly "com.h2database:h2:$rootProject.h2_version"
     runtimeOnly("io.javalin:javalin:$rootProject.javalin_version") {
         exclude group: "org.jetbrains.kotlin"
         exclude group: "org.jetbrains.kotlinx"
+        exclude group: "org.slf4j"
     }
     runtimeOnly "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
     forgeRuntimeLibrary("io.javalin:javalin:$rootProject.javalin_version") {
         exclude group: "org.jetbrains.kotlin"
         exclude group: "org.jetbrains.kotlinx"
+        exclude group: "org.slf4j"
     }
     forgeRuntimeLibrary "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 
@@ -57,6 +60,7 @@ dependencies {
     shadowBundle("io.javalin:javalin:$rootProject.javalin_version") {
         exclude group: "org.jetbrains.kotlin"
         exclude group: "org.jetbrains.kotlinx"
+        exclude group: "org.slf4j"
     }
     shadowBundle "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 }
@@ -74,6 +78,7 @@ shadowJar {
     archiveClassifier = 'dev-shadow'
     exclude 'kotlin/**'
     exclude 'kotlinx/**'
+    exclude 'org/slf4j/**'
     exclude 'META-INF/*.kotlin_module'
     relocate 'org.h2', 'city.zqdesigned.mc.authplugin.shadow.org.h2'
     relocate 'io.javalin', 'city.zqdesigned.mc.authplugin.shadow.io.javalin'

@@ -13,6 +13,7 @@ dependencies {
     implementation("io.javalin:javalin:$rootProject.javalin_version") {
         exclude group: "org.jetbrains.kotlin"
         exclude group: "org.jetbrains.kotlinx"
+        exclude group: "org.slf4j"
     }
     implementation "com.fasterxml.jackson.core:jackson-databind:$rootProject.jackson_databind_version"
 
